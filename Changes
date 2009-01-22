@@ -1,6 +1,21 @@
                                Set::Relation
 ---------------------------------------------------------------------------
 
+2009-01-21   Darren Duncan <perl@DarrenDuncan.net>
+
+    * Set::Relation version 0.0.1 for Perl 5 is released on CPAN as
+    Set-Relation-0.0.1.tar.gz.
+
+    * (Relation.pm)  Fixed a bug in the "quotient" method, and further
+    updated it with some special-case shortcuts.
+
+    * (Relation.pm)  Other minor updates.
+
+    * (README, Relation.pm)  Previously the FORUMS pod section of
+    Relation.pm and 3 parts of the README file lacked content, and now they
+    have it; added documentation about where the Set::Relation version
+    control and support forums are.
+
 2009-01-19   Darren Duncan <perl@DarrenDuncan.net>
 
     * Set::Relation version 0.0.0 for Perl 5 is released on CPAN as

@@ -7,7 +7,7 @@ use warnings FATAL => 'all';
 ###########################################################################
 
 { package Set::Relation; # class
-    use version 0.74; our $VERSION = qv('0.0.0');
+    use version 0.74; our $VERSION = qv('0.0.1');
 
     use Moose 0.64;
 
@@ -1378,14 +1378,34 @@ sub quotient {
             . q{ it isn't a Set::Relation object.}
         if !blessed $divisor or !$divisor->isa( __PACKAGE__ );
 
-    my (undef, $dividend_only, undef) = $dividend->_ptn_conj_and_disj(
-        $dividend->_heading(), $divisor->_heading() );
+    my (undef, $dividend_only, $divisor_only)
+        = $dividend->_ptn_conj_and_disj(
+            $dividend->_heading(), $divisor->_heading() );
+
+    confess q{quotient(): Bad $divisor arg;}
+            . q{ its heading isn't a subset of the invocant's heading.}
+        if @{$divisor_only} > 0;
 
     my $proj_of_dividend_only = $dividend->_projection( $dividend_only );
 
+    if ($dividend->is_empty() or $divisor->is_empty()) {
+        # At least one input has zero tup; res has all tup o dividend proj.
+        return $proj_of_dividend_only;
+    }
+
+    # If we get here, both inputs have at least one tuple.
+
+    if ($dividend->is_nullary() or $divisor->is_nullary()) {
+        # Both inputs or just divisor is ident-one tup; result is dividend.
+        return $dividend;
+    }
+
+    # If we get here, divisor has at least one attribute,
+    # and divisor heading is proper subset of dividend heading.
+
     return $proj_of_dividend_only
         ->_difference( $proj_of_dividend_only
-            ->_join( $divisor )
+            ->_product( $divisor )
             ->_difference( $dividend )
             ->_projection( $dividend_only )
         );
@@ -1507,7 +1527,7 @@ Relation data type for Perl
 
 =head1 VERSION
 
-This document describes Set::Relation version 0.0.0 for Perl 5.
+This document describes Set::Relation version 0.0.1 for Perl 5.
 
 =head1 SYNOPSIS
 
@@ -1590,7 +1610,7 @@ The name Set::Relation was chosen because it seems the most descriptive.  A
 relation can do everything a generic set can do plus more.  The Set::
 namespace is used to reduce confusion amongst other concepts of the word
 'relation', as some people think it means 'compare'; Set:: illustrates that
-my class' objects are functionally set-like collection values.
+this class' objects are functionally set-like collection values.
 
 I<This documentation is pending.>
 
@@ -2295,9 +2315,9 @@ called C<A> and C<B>, and their attribute sets are respectively named
 C<{X,Y}> and C<{Y}>, then the result relation has a heading composed of
 attributes C<{X}> (so the result and C<$divisor> headings are both
 complementary subsets of the C<$dividend> heading); the result has all
-tuples C<{X}> such that a q/tuple C<{X,Y}> appears in C<A> for all tuples
+tuples C<{X}> such that a tuple C<{X,Y}> appears in C<A> for all tuples
 C<{Y}> appearing in C<B>; that is, C<A / B> is shorthand for C<A{X} -
-((A{X} join B) - A){X}>.
+((A{X} * B) - A){X}>.
 
 =item C<method composition of Set::Relation ($topic: Set::Relation $other)>
 
@@ -2338,12 +2358,14 @@ None reported.
 
 =head1 SEE ALSO
 
-These documentation packages: L<Muldis::D>.
+The separate all-documentation distribution L<Muldis::D> is the formal
+definition of the Muldis D language, a portion of which Set::Relation is
+mainly based on.
 
-These other Perl 6 packages: L<Set>, L<Muldis::Rosetta>.
+These other Perl 6 packages: L<Muldis::Rosetta>, L<Set>.
 
-These other Perl 5 packages: L<Set::Object>, L<Set::Scalar>,
-L<Muldis::Rosetta>.
+These other Perl 5 packages: L<Muldis::Rosetta>, L<Set::Object>,
+L<Set::Scalar>.
 
 =head1 BUGS AND LIMITATIONS
 
@@ -2399,6 +2421,45 @@ None yet.
 
 =head1 FORUMS
 
-I<This documentation is pending.>
+Several public email-based forums exist whose main topic is all
+implementations of the L<Muldis D|Muldis::D> language, especially the
+L<Muldis Rosetta|Muldis::Rosetta> reference implementation, but also the
+L<Set::Relation> module.  All of these you can reach via
+L<http://mm.DarrenDuncan.net/mailman/listinfo>; go there to manage your
+subscriptions to, or view the archives of, the following:
+
+=over
+
+=item C<muldis-db-announce@mm.DarrenDuncan.net>
+
+This low-volume list is mainly for official announcements from the Muldis
+Rosetta developers, though developers of Muldis Rosetta extensions can also
+post their announcements here.  This is not a discussion list.
+
+=item C<muldis-db-users@mm.DarrenDuncan.net>
+
+This list is for general discussion among people who are using Muldis
+Rosetta, which is not concerned with the implementation of Muldis Rosetta
+itself.  This is the best place to ask for basic help in getting Muldis
+Rosetta installed on your machine or to make it do what you want.  You
+could also submit feature requests or report perceived bugs here, if you
+don't want to use CPAN's RT system.
+
+=item C<muldis-db-devel@mm.DarrenDuncan.net>
+
+This list is for discussion among people who are designing or implementing
+the Muldis Rosetta core API (including Muldis D language design), or who
+are implementing Muldis Rosetta Engines, or who are writing core
+documentation, tests, or examples.  It is not the place for
+non-implementers to get help in using said.
+
+=back
+
+An official IRC channel for Muldis D and its implementations is also
+intended, but not yet started.
+
+Alternately, you can purchase more advanced commercial support for various
+Muldis D implementations, particularly Muldis Rosetta, from its author by
+way of Muldis Data Systems; see (L<http://www.muldis.com/>) for details.
 
 =cut
