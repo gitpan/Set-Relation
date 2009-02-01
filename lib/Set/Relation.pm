@@ -7,7 +7,7 @@ use warnings FATAL => 'all';
 ###########################################################################
 
 { package Set::Relation; # class
-    use version 0.74; our $VERSION = qv('0.0.2');
+    use version 0.74; our $VERSION = qv('0.1.0');
 
     use Moose 0.65;
 
@@ -76,6 +76,7 @@ use warnings FATAL => 'all';
         default => sub { {} },
     );
 
+    use Scalar::Util 'refaddr';
     use List::Util 'first';
 
 ###########################################################################
@@ -91,11 +92,12 @@ sub BUILD {
         # Extra option 1.
         $members = [];
     }
-    elsif (ref $members eq 'HASH') {
-        # Extra option 2;
+    elsif (!ref $members or ref $members eq 'HASH') {
+        # Extra options 2 and 3.
         $members = [$members];
     }
-    confess q{new(): Bad :$members arg; it must be either undefined}
+    confess q{new(): Bad :$members arg;}
+            . q{ it must be either undefined or a non-ref}
             . q{ or an array-ref or a hash-ref or a Set::Relation object.}
         if ref $members ne 'ARRAY'
             and not (blessed $members and $members->isa( __PACKAGE__ ));
@@ -148,6 +150,11 @@ sub BUILD {
                         . q{ don't have exactly the same set of hkeys.}
                     if ref $tuple ne 'HASH'
                         or !$self->_is_identical_hkeys( $heading, $tuple );
+                confess q{new(): Bad :$members arg;}
+                        . q{ at least one of its hash-ref elems}
+                        . q{ is such that there exists circular refs}
+                        . q{ between itself or its value-typed components.}
+                    if $self->_tuple_arg_has_circular_refs( $tuple );
                 $tuple = $self->_import_nfmt_tuple( $tuple );
                 $body->{$self->_ident_str( $tuple )} = $tuple;
             }
@@ -179,6 +186,15 @@ sub BUILD {
                         . q{ array-ref, or that doesn't have the same}
                         . q{ count of elems as the :$members first elem.}
                     if ref $tuple ne 'ARRAY' or @{$tuple} != @{$member0};
+                for my $atvl (@{$tuple}) {
+                    confess q{new(): Bad :$members arg;}
+                            . q{ at least one of its array-ref elems}
+                            . q{ is such that there exists circular refs}
+                            . q{ between its value-typed components.}
+                        if ref $atvl eq 'HASH'
+                            and $self->_tuple_arg_has_circular_refs(
+                                $atvl );
+                }
                 $tuple = $self->_import_ofmt_tuple( $member0, $tuple );
                 $body->{$self->_ident_str( $tuple )} = $tuple;
             }
@@ -333,7 +349,13 @@ sub insert {
     my ($r, $t) = @_;
     confess q{insert(): Can't mutate invocant that has a frozen identity.}
         if $r->_has_frozen_identity();
-    $t = $r->_normalize_tuples_arg( 'insert', '$t', $t );
+    $t = $r->_normalize_same_heading_tuples_arg( 'insert', '$t', $t );
+    for my $tuple (@{$t}) {
+        confess q{insert(): Bad $t arg; it contains the invocant}
+                . q{ Set::Relation object as a value-typed component,}
+                . q{ so the invocant would be frozen as a side-effect.}
+            if $r->_self_is_component_of_tuple_arg( $tuple );
+    }
     return $r->_insert( $t );
 }
 
@@ -370,7 +392,13 @@ sub delete {
     my ($r, $t) = @_;
     confess q{delete(): Can't mutate invocant that has a frozen identity.}
         if $r->_has_frozen_identity();
-    $t = $r->_normalize_tuples_arg( 'delete', '$t', $t );
+    $t = $r->_normalize_same_heading_tuples_arg( 'delete', '$t', $t );
+    for my $tuple (@{$t}) {
+        confess q{delete(): Bad $t arg; it contains the invocant}
+                . q{ Set::Relation object as a value-typed component,}
+                . q{ so the invocant would be frozen as a side-effect.}
+            if $r->_self_is_component_of_tuple_arg( $tuple );
+    }
     return $r->_delete( $t );
 }
 
@@ -406,11 +434,10 @@ sub _delete {
     return $r;
 }
 
-sub _normalize_tuples_arg {
+sub _normalize_same_heading_tuples_arg {
     my ($r, $rtn_nm, $arg_nm, $t) = @_;
 
     my $r_h = $r->_heading();
-    my $r_b = $r->_body();
 
     if (ref $t eq 'HASH') {
         $t = [$t];
@@ -424,9 +451,49 @@ sub _normalize_tuples_arg {
                 . q{ same set of attr names as the invocant.}
             if ref $tuple ne 'HASH'
                 or !$r->_is_identical_hkeys( $r_h, $tuple );
+        confess qq{$rtn_nm(): Bad $arg_nm arg elem;}
+                . q{ it is a hash-ref, and there exist circular refs}
+                . q{ between itself or its value-typed components.}
+            if $r->_tuple_arg_has_circular_refs( $tuple );
     }
 
     return $t;
+}
+
+sub _tuple_arg_has_circular_refs {
+    # This routine just checks that no Hash which would be treated as
+    # being of a value type contains itself as a component, where the
+    # component and any intermediate components are treated as value types.
+    # It *is* fine for a Hash to contain the same other Hash more than once
+    # such that the other is a sibling/cousin/etc to itself.
+    my ($self, $tuple, $ancs_of_tup_atvls) = @_;
+    $ancs_of_tup_atvls = $ancs_of_tup_atvls ? {%{$ancs_of_tup_atvls}} : {};
+    $ancs_of_tup_atvls->{refaddr $tuple} = undef;
+    for my $atvl (values %{$tuple}) {
+        if (ref $atvl eq 'HASH') {
+            return 1
+                if exists $ancs_of_tup_atvls->{refaddr $atvl};
+            return 1
+                if $self->_tuple_arg_has_circular_refs(
+                    $atvl, $ancs_of_tup_atvls );
+        }
+    }
+    return 0;
+}
+
+sub _self_is_component_of_tuple_arg {
+    my ($self, $tuple) = @_;
+    for my $atvl (values %{$tuple}) {
+        if (blessed $atvl and $atvl->isa( __PACKAGE__ )) {
+            return 1
+                if refaddr $atvl == refaddr $self;
+        }
+        elsif (ref $atvl eq 'HASH') {
+            return 1
+                if $self->_self_is_component_of_tuple_arg( $atvl );
+        }
+    }
+    return 0;
 }
 
 ###########################################################################
@@ -561,7 +628,7 @@ sub is_empty {
 
 sub is_member {
     my ($r, $t) = @_;
-    $t = $r->_normalize_tuples_arg( 'is_member', '$t', $t );
+    $t = $r->_normalize_same_heading_tuples_arg( 'is_member', '$t', $t );
     my $r_b = $r->_body();
     return !first {
             !exists $r_b->{$r->_ident_str( $r->_import_nfmt_tuple( $_ ) )}
@@ -577,13 +644,13 @@ sub empty {
 
 sub insertion {
     my ($r, $t) = @_;
-    $t = $r->_normalize_tuples_arg( 'insertion', '$t', $t );
+    $t = $r->_normalize_same_heading_tuples_arg( 'insertion', '$t', $t );
     return $r->clone()->_insert( $t );
 }
 
 sub deletion {
     my ($r, $t) = @_;
-    $t = $r->_normalize_tuples_arg( 'deletion', '$t', $t );
+    $t = $r->_normalize_same_heading_tuples_arg( 'deletion', '$t', $t );
     return $r->clone()->_delete( $t );
 }
 
@@ -665,8 +732,9 @@ sub _rename {
 sub projection {
     my ($topic, $attrs) = @_;
 
-    my $proj_h = $topic->_attrs_hr_from_assert_valid_attrs_arg(
-        'projection', '$attrs', $attrs );
+    (my $proj_h, $attrs)
+        = $topic->_attrs_hr_from_assert_valid_attrs_arg(
+            'projection', '$attrs', $attrs );
     my (undef, undef, $proj_only)
         = $topic->_ptn_conj_and_disj( $topic->_heading(), $proj_h );
     confess q{projection(): Bad $attrs arg; that attr list}
@@ -717,8 +785,9 @@ sub cmpl_projection {
 
     my $topic_h = $topic->_heading();
 
-    my $cproj_h = $topic->_attrs_hr_from_assert_valid_attrs_arg(
-        'cmpl_projection', '$attrs', $attrs );
+    (my $cproj_h, $attrs)
+        = $topic->_attrs_hr_from_assert_valid_attrs_arg(
+            'cmpl_projection', '$attrs', $attrs );
     my (undef, undef, $cproj_only)
         = $topic->_ptn_conj_and_disj( $topic_h, $cproj_h );
     confess q{cmpl_projection(): Bad $attrs arg; that attr list}
@@ -732,7 +801,7 @@ sub cmpl_projection {
 ###########################################################################
 
 sub restriction {
-    my ($topic, $func, $assuming) = @_;
+    my ($topic, $func) = @_;
 
     $topic->_assert_valid_func_arg( 'restriction', '$func', $func );
 
@@ -743,7 +812,12 @@ sub restriction {
 
     for my $tuple_ident_str (keys %{$topic_b}) {
         my $tuple = $topic_b->{$tuple_ident_str};
-        if ($func->( $topic->_export_nfmt_tuple( $tuple ), $assuming )) {
+        my $is_matched;
+        {
+            local $_ = $topic->_export_nfmt_tuple( $tuple );
+            $is_matched = $func->();
+        }
+        if ($is_matched) {
             $result_b->{$tuple_ident_str} = $tuple;
         }
     }
@@ -753,7 +827,7 @@ sub restriction {
 }
 
 sub cmpl_restriction {
-    my ($topic, $func, $assuming) = @_;
+    my ($topic, $func) = @_;
 
     $topic->_assert_valid_func_arg( 'cmpl_restriction', '$func', $func );
 
@@ -764,7 +838,12 @@ sub cmpl_restriction {
 
     for my $tuple_ident_str (keys %{$topic_b}) {
         my $tuple = $topic_b->{$tuple_ident_str};
-        if (!$func->( $topic->_export_nfmt_tuple( $tuple ), $assuming )) {
+        my $is_matched;
+        {
+            local $_ = $topic->_export_nfmt_tuple( $tuple );
+            $is_matched = $func->();
+        }
+        if (!$is_matched) {
             $result_b->{$tuple_ident_str} = $tuple;
         }
     }
@@ -776,10 +855,11 @@ sub cmpl_restriction {
 ###########################################################################
 
 sub extension {
-    my ($topic, $attrs, $func, $assuming) = @_;
+    my ($topic, $attrs, $func) = @_;
 
-    my $exten_h = $topic->_attrs_hr_from_assert_valid_attrs_arg(
-        'extension', '$attrs', $attrs );
+    (my $exten_h, $attrs)
+        = $topic->_attrs_hr_from_assert_valid_attrs_arg(
+            'extension', '$attrs', $attrs );
     $topic->_assert_valid_func_arg( 'extension', '$func', $func );
 
     if (@{$attrs} == 0) {
@@ -803,8 +883,11 @@ sub extension {
     my $result_b = $result->_body();
 
     for my $topic_t (values %{$topic->_body()}) {
-        my $exten_t
-            = $func->( $topic->_export_nfmt_tuple( $topic_t ), $assuming );
+        my $exten_t;
+        {
+            local $_ = $topic->_export_nfmt_tuple( $topic_t );
+            $exten_t = $func->();
+        }
         $topic->_assert_valid_tuple_result_of_func_arg(
             'extension', '$func', '$attrs', $exten_t, $exten_h );
         $exten_t = $topic->_import_nfmt_tuple( $exten_t );
@@ -836,6 +919,11 @@ sub static_extension {
             . q{ isn't disjoint with the invocant's heading.}
         if @{$both} > 0;
 
+    confess q{static_extension(): Bad $attrs arg;}
+            . q{ it is a hash-ref, and there exist circular refs}
+            . q{ between itself or its value-typed components.}
+        if $topic->_tuple_arg_has_circular_refs( $attrs );
+
     $attrs = $topic->_import_nfmt_tuple( $attrs );
 
     my $result = __PACKAGE__->new();
@@ -859,10 +947,11 @@ sub static_extension {
 ###########################################################################
 
 sub map {
-    my ($topic, $result_attrs, $func, $assuming) = @_;
+    my ($topic, $result_attrs, $func) = @_;
 
-    my $result_h = $topic->_attrs_hr_from_assert_valid_attrs_arg(
-        'map', '$result_attrs', $result_attrs );
+    (my $result_h, $result_attrs)
+        = $topic->_attrs_hr_from_assert_valid_attrs_arg(
+            'map', '$result_attrs', $result_attrs );
     $topic->_assert_valid_func_arg( 'map', '$func', $func );
 
     if (@{$result_attrs} == 0) {
@@ -883,8 +972,11 @@ sub map {
     my $result_b = $result->_body();
 
     for my $topic_t (values %{$topic->_body()}) {
-        my $result_t
-            = $func->( $topic->_export_nfmt_tuple( $topic_t ), $assuming );
+        my $result_t;
+        {
+            local $_ = $topic->_export_nfmt_tuple( $topic_t );
+            $result_t = $func->();
+        }
         $topic->_assert_valid_tuple_result_of_func_arg(
             'map', '$func', '$result_attrs', $result_t, $result_h );
         $result_t = $topic->_import_nfmt_tuple( $result_t );
@@ -903,8 +995,11 @@ sub map {
 sub _attrs_hr_from_assert_valid_attrs_arg {
     my ($self, $rtn_nm, $arg_nm, $attrs) = @_;
 
+    if (defined $attrs and !ref $attrs) {
+        $attrs = [$attrs];
+    }
     confess qq{$rtn_nm(): Bad $arg_nm arg;}
-            . q{ it must be an array-ref.}
+            . q{ it must be an array-ref or a defined non-ref.}
         if ref $attrs ne 'ARRAY';
     for my $atnm (@{$attrs}) {
         confess qq{$rtn_nm(): Bad $arg_nm arg;}
@@ -918,7 +1013,7 @@ sub _attrs_hr_from_assert_valid_attrs_arg {
             . q{ attr names with at least one duplicated name.}
         if (keys %{$heading}) != @{$attrs};
 
-    return $heading;
+    return ($heading, $attrs);
 }
 
 sub _assert_valid_func_arg {
@@ -937,6 +1032,11 @@ sub _assert_valid_tuple_result_of_func_arg {
             . qq{ set of hkeys as specified by the $arg_nm_attrs arg.}
         if ref $result_t ne 'HASH'
             or !$self->_is_identical_hkeys( $heading, $result_t );
+    confess qq{$rtn_nm(): Bad $arg_nm_func arg;}
+            . q{ at least one result of executing that Perl subroutine}
+            . q{ reference was a hash-ref, and there exist circular refs}
+            . q{ between itself or its value-typed components.}
+        if $self->_tuple_arg_has_circular_refs( $result_t );
 }
 
 ###########################################################################
@@ -987,31 +1087,46 @@ sub is_disjoint {
     my ($topic, $other) = @_;
     $topic->_assert_same_heading_relation_arg(
         'is_disjoint', '$other', $other );
-    return $topic->_intersection( $other )->is_empty();
+    return $topic->_intersection( [$other] )->is_empty();
 }
 
 ###########################################################################
 
 sub union {
-    my ($topic, $other) = @_;
+    my ($topic, $others) = @_;
 
-    $topic->_assert_same_heading_relation_arg( 'union', '$other', $other );
+    $others = $topic->_normalize_same_heading_relations_arg(
+        'union', '$others', $others );
 
-    my ($sm, $lg) = ($topic->cardinality() < $other->cardinality())
-        ? ($topic, $other) : ($other, $topic);
+    my $inputs = [
+        sort { $b->cardinality() <=> $a->cardinality() }
+        grep { !$_->is_empty() } # filter out identity value instances
+        $topic, @{$others}];
 
-    if ($sm->is_empty()) {
-        return $lg;
+    if (@{$inputs} == 0) {
+        # All inputs were the identity value; so is result.
+        return $topic->empty();
+    }
+    if (@{$inputs} == 1) {
+        # Only one non-identity value input; so it is the result.
+        return $inputs->[0];
     }
 
-    my $result = $lg->clone();
+    # If we get here, there are at least 2 non-empty input relations.
 
-    my $sm_b = $sm->_body();
+    my $largest = shift @{$inputs};
+
+    my $result = $largest->clone();
+
+    my $smaller_bs = [map { $_->_body() } @{$inputs}];
     my $result_b = $result->_body();
 
-    for my $tuple_ident_str (keys %{$sm_b}) {
-        if (!exists $result_b->{$tuple_ident_str}) {
-            $result_b->{$tuple_ident_str} = $sm_b->{$tuple_ident_str};
+    for my $smaller_b (@{$smaller_bs}) {
+        for my $tuple_ident_str (keys %{$smaller_b}) {
+            if (!exists $result_b->{$tuple_ident_str}) {
+                $result_b->{$tuple_ident_str}
+                    = $smaller_b->{$tuple_ident_str};
+            }
         }
     }
     $result->_cardinality( scalar keys %{$result_b} );
@@ -1023,30 +1138,43 @@ sub union {
 
 sub exclusion {
     # Also known as symmetric_difference().
-    my ($topic, $other) = @_;
+    my ($topic, $others) = @_;
 
-    $topic->_assert_same_heading_relation_arg(
-        'exclusion', '$other', $other );
+    $others = $topic->_normalize_same_heading_relations_arg(
+        'exclusion', '$others', $others );
 
-    my ($sm, $lg) = ($topic->cardinality() < $other->cardinality())
-        ? ($topic, $other) : ($other, $topic);
+    my $inputs = [
+        sort { $b->cardinality() <=> $a->cardinality() }
+        grep { !$_->is_empty() } # filter out identity value instances
+        $topic, @{$others}];
 
-    if ($sm->is_empty()) {
-        return $lg;
+    if (@{$inputs} == 0) {
+        # All inputs were the identity value; so is result.
+        return $topic->empty();
+    }
+    if (@{$inputs} == 1) {
+        # Only one non-identity value input; so it is the result.
+        return $inputs->[0];
     }
 
-    my $result = $lg->clone();
+    # If we get here, there are at least 2 non-empty input relations.
 
-    my $sm_b = $sm->_body();
-    my $lg_b = $lg->_body();
+    my $largest = shift @{$inputs};
+
+    my $result = $largest->clone();
+
+    my $smaller_bs = [map { $_->_body() } @{$inputs}];
     my $result_b = $result->_body();
 
-    for my $tuple_ident_str (keys %{$sm_b}) {
-        if (exists $lg_b->{$tuple_ident_str}) {
-            CORE::delete $result_b->{$tuple_ident_str};
-        }
-        else {
-            $result_b->{$tuple_ident_str} = $sm_b->{$tuple_ident_str};
+    for my $smaller_b (@{$smaller_bs}) {
+        for my $tuple_ident_str (keys %{$smaller_b}) {
+            if (exists $result_b->{$tuple_ident_str}) {
+                CORE::delete $result_b->{$tuple_ident_str};
+            }
+            else {
+                $result_b->{$tuple_ident_str}
+                    = $smaller_b->{$tuple_ident_str};
+            }
         }
     }
     $result->_cardinality( scalar keys %{$result_b} );
@@ -1057,36 +1185,91 @@ sub exclusion {
 ###########################################################################
 
 sub intersection {
-    my ($topic, $other) = @_;
-    $topic->_assert_same_heading_relation_arg(
-        'intersection', '$other', $other );
-    return $topic->_intersection( $other );
+    my ($topic, $others) = @_;
+    $others = $topic->_normalize_same_heading_relations_arg(
+        'intersection', '$others', $others );
+    return $topic->_intersection( $others );
 }
 
 sub _intersection {
-    my ($topic, $other) = @_;
+    my ($topic, $others) = @_;
 
-    my ($sm, $lg) = ($topic->cardinality() < $other->cardinality())
-        ? ($topic, $other) : ($other, $topic);
-
-    if ($sm->is_empty()) {
-        return $sm;
+    if (@{$others} == 0) {
+        return $topic;
     }
 
-    my $result = $lg->empty();
+    my $inputs = [
+        sort { $a->cardinality() <=> $b->cardinality() }
+        $topic, @{$others}];
 
-    my $sm_b = $sm->_body();
-    my $lg_b = $lg->_body();
+    my $smallest = shift @{$inputs};
+
+    if ($smallest->is_empty()) {
+        return $smallest;
+    }
+
+    # If we get here, there are at least 2 non-empty input relations.
+
+    my $result = $smallest->empty();
+
+    my $smallest_b = $smallest->_body();
+    my $larger_bs = [map { $_->_body() } @{$inputs}];
     my $result_b = $result->_body();
 
-    for my $tuple_ident_str (keys %{$sm_b}) {
-        if (exists $lg_b->{$tuple_ident_str}) {
-            $result_b->{$tuple_ident_str} = $sm_b->{$tuple_ident_str};
+    TUPLE:
+    for my $tuple_ident_str (keys %{$smallest_b}) {
+        for my $larger_b (@{$larger_bs}) {
+            next TUPLE
+                if !exists $larger_b->{$tuple_ident_str};
         }
+        $result_b->{$tuple_ident_str} = $smallest_b->{$tuple_ident_str};
     }
     $result->_cardinality( scalar keys %{$result_b} );
 
     return $result;
+}
+
+###########################################################################
+
+sub _normalize_same_heading_relations_arg {
+    my ($self, $rtn_nm, $arg_nm, $others) = @_;
+
+    my $self_h = $self->_heading();
+
+    if (blessed $others and $others->isa( __PACKAGE__ )) {
+        $others = [$others];
+    }
+    confess qq{$rtn_nm(): Bad $arg_nm arg;}
+            . q{ it must be an array-ref or a Set::Relation object.}
+        if ref $others ne 'ARRAY';
+    for my $other (@{$others}) {
+        confess qq{$rtn_nm(): Bad $arg_nm arg elem;}
+                . q{ it isn't a Set::Relation object, or it doesn't have}
+                . q{ exactly the same set of attr names as the invocant.}
+            if !blessed $other or !$other->isa( __PACKAGE__ )
+                or !$self->_is_identical_hkeys(
+                    $self_h, $other->_heading() );
+    }
+
+    return $others;
+}
+
+sub _normalize_relations_arg {
+    my ($self, $rtn_nm, $arg_nm, $others) = @_;
+
+    if (blessed $others and $others->isa( __PACKAGE__ )) {
+        $others = [$others];
+    }
+    confess qq{$rtn_nm(): Bad $arg_nm arg;}
+            . q{ it must be an array-ref or a Set::Relation object.}
+        if ref $others ne 'ARRAY';
+    for my $other (@{$others}) {
+        confess qq{$rtn_nm(): Bad $arg_nm arg elem;}
+                . q{ it isn't a Set::Relation object.}
+            if !blessed $other or !$other->isa( __PACKAGE__ );
+    }
+
+    return $others;
 }
 
 ###########################################################################
@@ -1173,7 +1356,7 @@ sub _semijoin {
     }
     if (@{$source_only} == 0 and @{$filter_only} == 0) {
         # The inputs have identical headings; result is intersection.
-        return $source->_intersection( $filter );
+        return $source->_intersection( [$filter] );
     }
 
     # If we get here, the inputs also have overlapping non-ident headings.
@@ -1211,63 +1394,87 @@ sub _regular_semijoin {
 ###########################################################################
 
 sub join {
-    my ($topic, $other) = @_;
-    confess q{join(): Bad $other arg; it isn't a Set::Relation object.}
-        if !blessed $other or !$other->isa( __PACKAGE__ );
-    return $topic->_join( $other );
+    my ($topic, $others) = @_;
+    $others = $topic->_normalize_relations_arg(
+        'join', '$others', $others );
+    return $topic->_join( $others );
 }
 
 sub _join {
-    my ($topic, $other) = @_;
+    my ($topic, $others) = @_;
 
-    my ($both, $topic_only, $other_only) = $topic->_ptn_conj_and_disj(
-        $topic->_heading(), $other->_heading() );
-
-    if ($topic->is_empty() or $other->is_empty()) {
-        # At least one input has zero tuples; so does result.
-        return __PACKAGE__->new(
-            members => [@{$both}, @{$topic_only}, @{$other_only}] );
-    }
-
-    # If we get here, both inputs have at least one tuple.
-
-    if ($topic->is_nullary()) {
-        # First input is identity-one relation; result is second input.
-        return $other;
-    }
-    if ($other->is_nullary()) {
-        # Second input is identity-one relation; result is first input.
+    if (@{$others} == 0) {
         return $topic;
     }
 
-    # If we get here, both inputs also have at least one attribute.
-
-    if (@{$both} == 0) {
-        # The inputs have disjoint headings; result is cross-product.
-        return $topic->_regular_product( $other );
-    }
-    if (@{$topic_only} == 0 and @{$other_only} == 0) {
-        # The inputs have identical headings; result is intersection.
-        return $topic->_intersection( $other );
+    if (first { $_->is_empty() } $topic, @{$others}) {
+        # At least one input has zero tuples; so does result.
+        my $result_h = {map { %{$_->_heading()} } $topic, @{$others}};
+        return __PACKAGE__->new( members => [keys %{$result_h}] );
     }
 
-    # If we get here, the inputs also have overlapping non-ident headings.
+    # If we get here, all inputs have at least one tuple.
 
-    if (@{$topic_only} == 0) {
-        # The first input's attributes are a proper subset of the second's;
-        # result has same heading as second, a subset of second's tuples.
-        return $other->_regular_semijoin( $topic, $both );
+    my $inputs = [
+        sort { $a->cardinality() <=> $b->cardinality() }
+        grep { !$_->is_nullary() } # filter out identity value instances
+        $topic, @{$others}];
+
+    if (@{$inputs} == 0) {
+        # All inputs were the identity value; so is result.
+        return $topic;
     }
-    if (@{$other_only} == 0) {
-        # The second input's attributes are a proper subset of the first's;
-        # result has same heading as first, a subset of first's tuples.
-        return $topic->_regular_semijoin( $other, $both );
+    if (@{$inputs} == 1) {
+        # Only one non-identity value input; so it is the result.
+        return $inputs->[0];
     }
 
-    # If we get here, both inputs also have at least one attr of their own.
+    # If we get here, there are at least 2 non-empty non-nullary inp rels.
 
-    return $topic->_regular_join(
-        $other, $both, $topic_only, $other_only );
+    my $result = shift @{$inputs};
+    INPUT:
+    for my $input (@{$inputs}) {
+        # TODO: Optimize this better by determining more strategic order
+        # to join the various inputs, such as by doing intersections first,
+        # then semijoins, then regular joins, then cross-products.
+        # But at least we're going min to max cardinality meanwhile.
+
+        my ($both, $result_only, $input_only)
+            = $result->_ptn_conj_and_disj(
+                $result->_heading(), $input->_heading() );
+
+        if (@{$both} == 0) {
+            # The inputs have disjoint headings; result is cross-product.
+            $result = $result->_regular_product( $input );
+            next INPUT;
+        }
+        if (@{$result_only} == 0 and @{$input_only} == 0) {
+            # The inputs have identical headings; result is intersection.
+            $result = $result->_intersection( [$input] );
+            next INPUT;
+        }
+
+        # If we get here, the inputs also have overlapping non-ident heads.
+
+        if (@{$result_only} == 0) {
+            # The first input's attrs are a proper subset of the second's;
+            # result has same heading as second, a subset of sec's tuples.
+            $result = $input->_regular_semijoin( $result, $both );
+            next INPUT;
+        }
+        if (@{$input_only} == 0) {
+            # The second input's attrs are a proper subset of the first's;
+            # result has same heading as first, a subset of first's tuples.
+            $result = $result->_regular_semijoin( $input, $both );
+            next INPUT;
+        }
+
+        # If we get here, both inputs also have mini one attr of their own.
+
+        $result = $result->_regular_join(
+            $input, $both, $result_only, $input_only );
+    }
+    return $result;
 }
 
 sub _regular_join {
@@ -1308,38 +1515,55 @@ sub _regular_join {
 ###########################################################################
 
 sub product {
-    my ($topic, $other) = @_;
+    my ($topic, $others) = @_;
 
-    confess q{product(): Bad $other arg; it isn't a Set::Relation object.}
-        if !blessed $other or !$other->isa( __PACKAGE__ );
+    $others = $topic->_normalize_relations_arg(
+        'product', '$others', $others );
 
-    my ($both, $topic_only, $other_only) = $topic->_ptn_conj_and_disj(
-        $topic->_heading(), $other->_heading() );
-
-    confess q{product(): Bad $other arg;}
-            . q{ its heading isn't disjoint with the invocant.}
-        if @{$both} > 0;
-
-    if ($topic->is_empty() or $other->is_empty()) {
-        # At least one input has zero tuples; so does result.
-        return __PACKAGE__->new(
-            members => [@{$topic_only}, @{$other_only}] );
-    }
-
-    # If we get here, both inputs have at least one tuple.
-
-    if ($topic->is_nullary()) {
-        # First input is identity-one relation; result is second input.
-        return $other;
-    }
-    if ($other->is_nullary()) {
-        # Second input is identity-one relation; result is first input.
+    if (@{$others} == 0) {
         return $topic;
     }
 
-    # If we get here, both inputs also have at least one attribute.
+    my $seen_attrs = {%{$topic->_heading()}};
+    for my $other (@{$others}) {
+        for my $atnm (keys %{$others->_heading()}) {
+            confess q{product(): Bad $others arg;}
+                    . q{ one of its elems has an attr name duplicated by}
+                    . q{ either the invocant or another $others elem.}
+                if exists $seen_attrs->{$atnm};
+            $seen_attrs->{$atnm} = undef;
+        }
+    }
 
-    return $topic->_regular_product( $other );
+    if (first { $_->is_empty() } $topic, @{$others}) {
+        # At least one input has zero tuples; so does result.
+        my $result_h = {map { %{$_->_heading()} } $topic, @{$others}};
+        return __PACKAGE__->new( members => [keys %{$result_h}] );
+    }
+
+    # If we get here, all inputs have at least one tuple.
+
+    my $inputs = [
+        sort { $a->cardinality() <=> $b->cardinality() }
+        grep { !$_->is_nullary() } # filter out identity value instances
+        $topic, @{$others}];
+
+    if (@{$inputs} == 0) {
+        # All inputs were the identity value; so is result.
+        return $topic;
+    }
+    if (@{$inputs} == 1) {
+        # Only one non-identity value input; so it is the result.
+        return $inputs->[0];
+    }
+
+    # If we get here, there are at least 2 non-empty non-nullary inp rels.
+
+    my $result = shift @{$inputs};
+    for my $input (@{$inputs}) {
+        $result = $result->_regular_product( $input );
+    }
+    return $result;
 }
 
 sub _regular_product {
@@ -1527,7 +1751,7 @@ Relation data type for Perl
 
 =head1 VERSION
 
-This document describes Set::Relation version 0.0.2 for Perl 5.
+This document describes Set::Relation version 0.1.0 for Perl 5.
 
 =head1 SYNOPSIS
 
@@ -1711,11 +1935,12 @@ reversed, though you can clone said object to get an un-frozen duplicate.
 There are 3 main ways to make a Set::Relation object immutable.  The first
 is explicitly, by invoking its C<freeze_identity> method.  The second is
 implicitly, by invoking its C<which> method I<(this one may be reconsidered
-on users' request)>.  The third is if another Set::Relation object is
-constructed that is given the first object as a tuple attribute value; this
-was done rather than cloning the input object under the assumption that
-most of the time you wouldn't want to mutate the input object afterwards,
-for efficiency.
+on users' request)>; this also happens to be done indirectly any time a
+tuple-representing Hash is given to a Set::Relation routine.  The third is
+if another Set::Relation object is constructed that is given the first
+object as a tuple attribute value; this was done rather than cloning the
+input object under the assumption that most of the time you wouldn't want
+to mutate the input object afterwards, for efficiency.
 
 =head2 Matters of Performance
 
@@ -1824,16 +2049,15 @@ exception; most often this is due to invalid input.  If an invoked routine
 simply returns, you can assume that it has succeeded, even if the return
 value is undefined.
 
-=head2 Constructor Submethods
+=head1 Constructor Submethods
 
 This is currently the only routine declared by Set::Relation that you
 invoke off of the class name; currently you invoke all other routines off
 of a Set::Relation object.
 
-=over
+=head2 new
 
-=item C<submethod new of Set::Relation (Array|Hash|Set::Relation
-:$members?)>
+C<submethod new of Set::Relation (Array|Hash|Set::Relation|Str :$members?)>
 
 This constructor submethod creates and returns a new C<Set::Relation>
 object, representing a single relation value, that is initialized primarily
@@ -1885,28 +2109,31 @@ C<$members>, as illustrated here:
     # One way to clone a relation object.
     my $r8 = Set::Relation->new( members => $r5 );
 
+    # Abbreviated way to specify 1 attr + zero tuples.
+    my $r9 = Set::Relation->new( members => 'value' );
+
 The new Set::Relation is initially a mutable object; its identity is not
 frozen.
 
-=back
-
-=head2 Accessor Methods
+=head1 Accessor Methods
 
 These Set::Relation object methods are mainly about extracting object
 attributes, essentially the reverse process of an object constructor; but
 some of these will mutate aspects of objects besides what relation
 attributes and tuples they have, and some do other misc things.
 
-=over
+=head2 clone
 
-=item C<method clone of Set::Relation ($self:)>
+C<method clone of Set::Relation ($self:)>
 
 This method results in a new Set::Relation object that has an exact clone
 of its invocant's attributes and tuples.  The new Set::Relation is
 initially a mutable object; its value identity is not frozen, regardless of
 whether the invocant is frozen or not.
 
-=item C<method export_for_new of Hash ($self: Bool|Array $want_ord_attrs?)>
+=head2 export_for_new
+
+C<method export_for_new of Hash ($self: Bool|Array $want_ord_attrs?)>
 
 This method results in a Perl Hash value whose Hash keys and values you can
 give as argument names and values to C<new> such that the latter would
@@ -1922,14 +2149,18 @@ C<$want_ord_attrs> is the Perl string value C<1>, then the result will have
 its attributes ordered alphabetically by attribute name (see the C<heading>
 method docs for why that is the case).
 
-=item C<method freeze_identity ($self:)>
+=head2 freeze_identity
+
+C<method freeze_identity ($self:)>
 
 This mutator method causes the invocant to become immutable when invoked;
 it freezes the invocant's value identity.  This change is not reversible
 (an immutable Set::Relation object can't be made mutable again), however
 invoking C<clone> on said object will give you a mutable duplicate.
 
-=item C<method which of Str ($self:)>
+=head2 which
+
+C<method which of Str ($self:)>
 
 This mutator method results in a character string representation of the
 invocant's value identity, and when invoked it has the side-effect of
@@ -1943,13 +2174,17 @@ guaranteed to have different ones.  This method is analagous to the special
 C<WHICH> method of Perl 6 and lets you treat Set::Relation as a "value
 type".
 
-=item C<method members of Array ($self: Bool|Array $want_ord_attrs?)>
+=head2 members
+
+C<method members of Array ($self: Bool|Array $want_ord_attrs?)>
 
 This method results in a Perl Array value as per the 'members' element of
 the Hash that C<export_for_new> would result in with the same invocant and
 with the same arguments.
 
-=item C<method heading of Array ($self:)>
+=head2 heading
+
+C<method heading of Array ($self:)>
 
 This method results in a Perl Array value whose elements are the attribute
 names of the invocant.  The attribute names are sorted alphabetically so
@@ -1960,41 +2195,43 @@ resulting from C<body> matches the default order resulting from C<heading>;
 in contrast, if C<body> was invoked to return attributes in named format,
 it doesn't matter what order C<heading> returns their names in.
 
-=item C<method body of Array ($self: Bool|Array $want_ord_attrs?)>
+=head2 body
+
+C<method body of Array ($self: Bool|Array $want_ord_attrs?)>
 
 This method results in a Perl Array value whose elements are the tuples of
 the invocant.  Each tuple is either a Perl Hash or a Perl Array depending
 on the value of the C<$want_ord_attrs>, like with the C<members> method.
 
-=back
-
-=head2 Mutator Methods
+=head1 Mutator Methods
 
 Invocations of these Set::Relation object methods will cause their
 invocants to mutate.  But they do not mutate any of their non-invocant
 arguments.  These methods also result in their invocants post-mutation, for
 the convenience of users that like to chain method calls.
 
-=over
+=head2 evacuate
 
-=item C<method evacuate of Set::Relation ($topic:)>
+C<method evacuate of Set::Relation ($topic:)>
 
 This mutator method deletes all of the tuples in its invocant relation.
 For a non-mutating equivalent, see the C<empty> functional method.
 
-=item C<method insert of Set::Relation ($r: Array|Hash $t)>
+=head2 insert
+
+C<method insert of Set::Relation ($r: Array|Hash $t)>
 
 This mutator method inserts its tuples argument into its invocant relation.
 For a non-mutating equivalent, see the C<insertion> functional method.
 
-=item C<method delete of Set::Relation ($r: Array|Hash $t)>
+=head2 delete
+
+C<method delete of Set::Relation ($r: Array|Hash $t)>
 
 This mutator method deletes its tuples argument from its invocant relation.
 For a non-mutating equivalent, see the C<deletion> functional method.
 
-=back
-
-=head2 Single Input Relation Functional Methods
+=head1 Single Input Relation Functional Methods
 
 These Set::Relation object methods are pure functional, each one whose
 execution results in a value and each one not mutating anything or having
@@ -2007,29 +2244,37 @@ These methods each have a single Set::Relation object as input, which is
 the invocant.  Some of them also result in a Set::Relation object while
 others do not.
 
-=over
+=head2 degree
 
-=item C<method degree of UInt ($topic:)>
+C<method degree of UInt ($topic:)>
 
 This functional method results in the degree of its invocant (that is, the
 count of attributes it has).
 
-=item C<method is_nullary of Bool ($topic:)>
+=head2 is_nullary
+
+C<method is_nullary of Bool ($topic:)>
 
 This functional method results in true iff its invocant has a degree of
 zero (that is, it has zero attributes), and false otherwise.
 
-=item C<method cardinality of UInt ($topic:)>
+=head2 cardinality
+
+C<method cardinality of UInt ($topic:)>
 
 This functional method results in the cardinality of its invocant (that is,
 the count of tuples its body has).
 
-=item C<method is_empty of Bool ($topic:)>
+=head2 is_empty
+
+C<method is_empty of Bool ($topic:)>
 
 This functional method results in true iff its invocant has a cardinality
 of zero (that is, it has zero tuples), and false otherwise.
 
-=item C<method is_member of Bool ($r: Array|Hash $t)>
+=head2 is_member
+
+C<method is_member of Bool ($r: Array|Hash $t)>
 
 This functional method results in true iff all of the tuples of its C<$t>
 argument match tuples of its invocant (that is, iff conceptually C<$t> is a
@@ -2037,27 +2282,35 @@ member of C<$r>), and false otherwise.  This method is like C<is_subset>
 except that the tuples being looked for don't have to be wrapped in a
 relation.
 
-=item C<method empty of Set::Relation ($topic:)>
+=head2 empty
+
+C<method empty of Set::Relation ($topic:)>
 
 This functional method results in the empty relation of the same heading of
 its invocant, that is having the same degree and attribute names; it has
 zero tuples.
 
-=item C<method insertion of Set::Relation ($r: Array|Hash $t)>
+=head2 insertion
+
+C<method insertion of Set::Relation ($r: Array|Hash $t)>
 
 This functional method results in a relation that is the relational union
 of C<$r> and a relation whose tuples are C<$t>; that is, conceptually the
 result is C<$t> inserted into C<$r>.  As a trivial case, if all of C<$t>
 already exist in C<$r>, then the result is just C<$r>.
 
-=item C<method deletion of Set::Relation ($r: Array|Hash $t)>
+=head2 deletion
+
+C<method deletion of Set::Relation ($r: Array|Hash $t)>
 
 This functional method results in a relation that is the relational
 difference from C<$r> of a relation whose tuples are C<$t>; that is,
 conceptually the result is C<$t> deleted from C<$r>.  As a trivial case, if
 all of C<$t> already doesn't exist in C<$r>, then the result is just C<$r>.
 
-=item C<method rename of Set::Relation ($topic: Hash $map)>
+=head2 rename
+
+C<method rename of Set::Relation ($topic: Hash $map)>
 
 This functional method results in a relation value that is the same as its
 C<$topic> invocant but that some of its attributes have different names.
@@ -2070,7 +2323,9 @@ This method will fail if C<$map> specifies any old names that C<$topic>
 doesn't have, or any new names that are the same as C<$topic> attributes
 that aren't being renamed.
 
-=item C<method projection of Set::Relation ($topic: Array $attrs)>
+=head2 projection
+
+C<method projection of Set::Relation ($topic: Array|Str $attrs)>
 
 This functional method results in the relational projection of its
 C<$topic> invocant that has just the subset of attributes of C<$topic>
@@ -2080,24 +2335,25 @@ C<$topic>; or, it is a nullary relation if C<$attrs> is empty.  This method
 will fail if C<$attrs> specifies any attribute names that C<$topic> doesn't
 have.
 
-=item C<method cmpl_projection of Set::Relation ($topic: Array $attrs)>
+=head2 cmpl_projection
+
+C<method cmpl_projection of Set::Relation ($topic: Array|Str $attrs)>
 
 This functional method is the same as C<projection> but that it results in
 the complementary subset of attributes of its invocant when given the same
 argument.
 
-=item C<method restriction of Set::Relation ($topic: Code $func, Any
-$assuming?)>
+=head2 restriction
+
+C<method restriction of Set::Relation ($topic: Code $func)>
 
 This functional method results in the relational restriction of its
-C<$topic> invocant as determined by applying the Bool-resulting Perl
-subroutine reference (having signature C<of Bool (Hash $topic, Any
-$assuming?)>) given in its C<$func> argument when said subroutine is
-curried by its C<$assuming> argument.  The result relation has the same
-heading as C<$topic>, and its body contains the subset of C<$topic> tuples
-where, for each tuple, the subroutine given in C<$func> results in true
-when passed the tuple as its C<$topic> argument and C<$assuming> as its
-C<$assuming> argument.  As a trivial case, if C<$func> is defined to
+C<$topic> invocant as determined by applying the Bool-resulting
+zero-parameter Perl subroutine reference given in its C<$func> argument.
+The result relation has the same heading as C<$topic>, and its body
+contains the subset of C<$topic> tuples where, for each tuple, the
+subroutine given in C<$func> results in true when the tuple is its C<$_>
+topic.  As a trivial case, if C<$func> is defined to
 unconditionally result in true, then this method results simply in
 C<$topic>; or, for an unconditional false, this method results in the empty
 relation with the same heading.  Note that this operation is also
@@ -2106,40 +2362,42 @@ a simpler-syntax alternative for C<restriction> in its typical usage where
 restrictions are composed simply of anded or ored tests for attribute value
 equality.
 
-=item C<method cmpl_restriction of Set::Relation ($topic: Code $func, Any
-$assuming?)>
+=head2 cmpl_restriction
+
+C<method cmpl_restriction of Set::Relation ($topic: Code $func)>
 
 This functional method is the same as C<restriction> but that it results in
 the complementary subset of tuples of C<$topic> when given the same
 arguments.  See also the C<semidifference> method.
 
-=item C<method extension of Set::Relation ($topic: Array $attrs, Code
-$func, Any $assuming?)>
+=head2 extension
+
+C<method extension of Set::Relation ($topic: Array|Str $attrs, Code $func)>
 
 This functional method results in the relational extension of its C<topic>
-invocant as determined by applying the tuple-resulting Perl subroutine
-reference (having signature C<of Hash (Hash $topic, Any $assuming?)>) given
-in its C<$func> argument when said subroutine is curried by its
-C<$assuming> argument.  The result relation has a heading that is a
-superset of that of C<$topic>, and its body contains the same number of
-tuples, with all attribute values of C<$topic> retained, and possibly extra
-present, determined as follows; for each C<$topic> tuple, the subroutine
-given in C<$func> results in a second tuple when passed the first tuple as
-its C<$topic> argument and C<$assuming> as its C<$assuming> argument; the
+invocant as determined by applying the tuple/Hash-resulting zero-parameter
+Perl subroutine reference given in its C<$func> argument.  The result
+relation has a heading that is a superset of that of C<$topic>, and its
+body contains the same number of tuples, with all attribute values of
+C<$topic> retained, and possibly extra present, determined as follows; for
+each C<$topic> tuple, the subroutine given in C<$func> results in a second
+tuple when the first tuple is its C<$_> topic; the
 first and second tuples must have no attribute names in common, and the
 result tuple is derived by joining (cross-product) the tuples together.  As
 a trivial case, if C<$func> is defined to unconditionally result in the
-degree-zero tuple, then this function results simply in C<$topic>.  Now,
+degree-zero tuple, then this method results simply in C<$topic>.  Now,
 C<extension> requires the extra C<$attrs> argument to prevent ambiguity in
 the general case where C<$topic> might have zero tuples, because in that
 situation, C<$func> would never be invoked, and the names of the attributes
 to add to C<$topic> are not known (we don't generally assume that
 C<extension> can reverse-engineer C<$func> to see what attributes it would
-have resulted in).  This function will fail if C<$topic> has at least 1
+have resulted in).  This method will fail if C<$topic> has at least 1
 tuple and the result of C<$func> does not have matching attribute names to
 those named by C<$attrs>.
 
-=item C<method static_extension of Set::Relation ($topic: Hash $attrs)>
+=head2 static_extension
+
+C<method static_extension of Set::Relation ($topic: Hash $attrs)>
 
 This functional method is a simpler-syntax alternative to both C<extension>
 and C<product> in the typical scenario of extending a relation, given in
@@ -2147,17 +2405,18 @@ the C<$topic> invocant, such that every tuple has mutually identical values
 for each of the new attributes; the new attribute names and common values
 are given in the C<$attrs> argument.
 
-=item C<method map of Set::Relation ($topic: Array $result_attrs, Code
-$func, Any $assuming?)>
+=head2 map
+
+C<method map of Set::Relation ($topic: Array|Str $result_attrs, Code
+$func)>
 
 This functional method provides a convenient one-place generalization of
 per-tuple transformations that otherwise might require the chaining of up
 to a half-dozen other operators like restriction, extension, and rename.
 This method results in a relation each of whose tuples is the result of
 applying, to each of the tuples of its C<$topic> invocant, the
-tuple-resulting Perl subroutine reference (having signature C<of Hash (Hash
-$topic, Any $assuming?)>) given in its C<$func> argument when said
-subroutine is curried by its C<$assuming> argument.  There is no
+tuple/Hash-resulting zero-parameter Perl subroutine reference given in its
+C<$func> argument.  There is no
 restriction on what attributes the result tuple of C<$func> may have
 (except that all tuples from C<$func> must have compatible headings); this
 tuple from C<$func> would completely replace the original tuple from
@@ -2165,8 +2424,8 @@ C<$topic>.  The result relation has a cardinality that is the same as that
 of C<$topic>, unless the result of C<$func> was redundant tuples, in which
 case the result has appropriately fewer tuples.  As a trivial case, if
 C<$func> is defined to unconditionally result in the same tuple as its own
-C<$topic> argument, then this function results simply in C<$topic>; or, if
-C<$func> is defined to have a static result, then this function's result
+C<$topic> argument, then this method results simply in C<$topic>; or, if
+C<$func> is defined to have a static result, then this method's result
 will have just 0..1 tuples.  Now, C<map> requires the extra
 C<$result_attrs> argument to prevent ambiguity in the general case where
 C<$topic> might have zero tuples, because in that situation, C<$func> would
@@ -2176,9 +2435,7 @@ to see what attributes it would have resulted in).  This method will fail
 if C<$topic> has at least 1 tuple and the result of C<$func> does not have
 matching attribute names to those named by C<$result_attrs>.
 
-=back
-
-=head2 Multiple Input Relation Functional Methods
+=head1 Multiple Input Relation Functional Methods
 
 These Set::Relation object methods are pure functional, each one whose
 execution results in a value and each one not mutating anything or having
@@ -2191,66 +2448,92 @@ These methods each have at least 2 Set::Relation objects as input, one of
 which is the invocant and the other of which is an additional argument.
 Some of them also result in a Set::Relation object while others do not.
 
-=over
+=head2 is_identical
 
-=item C<method is_identical of Bool ($topic: Set::Relation $other)>
+C<method is_identical of Bool ($topic: Set::Relation $other)>
 
 This functional method results in true iff its (mutually commutative)
 invocant and argument are exactly the same value (that is, Set::Relation
 considers them to have the same value identity), and false otherwise.
 
-=item C<method is_subset of Bool ($look_in: Set::Relation $look_for)>
+=head2 is_subset
+
+C<method is_subset of Bool ($look_in: Set::Relation $look_for)>
 
 This functional method results in true iff the set of tuples comprising
 C<$look_for> is a subset of the set of tuples comprising C<$look_in> (both
 must have the same heading regardless), and false otherwise.
 
-=item C<method is_proper_subset of Bool ($look_in: Set::Relation
-$look_for)>
+=head2 is_proper_subset
+
+C<method is_proper_subset of Bool ($look_in: Set::Relation $look_for)>
 
 This functional method is exactly the same as C<is_subset> except that it
 results in false if C<$look_in> and C<$look_for> are identical.
 
-=item C<method is_disjoint of Bool ($topic: Set::Relation $other)>
+=head2 is_disjoint
+
+C<method is_disjoint of Bool ($topic: Set::Relation $other)>
 
 This functional method results in true iff the set of tuples comprising
 each of its same-heading mutually commutative invocant and argument are
 mutually disjoint, that is, iff the intersection of the invocant and
 argument is empty; it results in false otherwise.
 
-=item C<method union of Set::Relation ($topic: Set::Relation $other)>
+=head2 union
 
-This functional method results in the relational union/inclusive-or of its
-same-heading invocant and argument.  The result relation has the same
-heading as the input relations, and its body contains every tuple that is
-in either of the inputs.  Relational union is both a commutative and
-associative operation, and its identity value is the same-heading empty
-relation value (having zero tuples).
+C<method union of Set::Relation ($topic: Array|Set::Relation $others)>
 
-=item C<method exclusion of Set::Relation ($topic: Set::Relation $other)>
+This functional method results in the relational union/inclusive-or of the
+collective N element values of its same-heading invocant and argument,
+hereafter referred to as C<$inputs>; it is a reduction operator that
+recursively takes each pair of input values and relationally unions (which
+is both commutative and associative) them together until just one is left,
+which is the result.  The result relation has the same heading as all of
+its input relations, and its body contains every tuple that is in any of
+the input relations.  The identity value of relational union is the
+same-heading empty relation value (having zero tuples).
+
+=head2 exclusion
+
+C<method exclusion of Set::Relation ($topic: Array|Set::Relation $others)>
 
 This functional method results in the relational exclusion/exclusive-or of
-its same-heading invocant and argument.  The result relation has the same
-heading as the input relations, and its body contains every tuple that is
-in just one of the two inputs.  Relational exclusion is both a commutative
-and associative operation, and its identity value is the same as for
-C<union>.  Note that this operation is also legitimately known as
-I<symmetric difference>.
+the collective N element values of its same-heading invocant and argument,
+hereafter referred to as C<$inputs>; it is a reduction operator that
+recursively takes each pair of input values and relationally excludes
+(which is both commutative and associative) them together until just one is
+left, which is the result.  The result relation has the same heading as all
+of its input relations, and its body contains every tuple that is in just
+an odd number of the input relations.  The identity value of relational
+exclusion is the same as for C<union>.  Note that this operation is also
+legitimately known as I<symmetric difference>.
 
-=item C<method intersection of Set::Relation ($topic: Set::Relation
-$other)>
+=head2 intersection
 
-This functional method results in the relational intersection/and of its
-same-heading invocant and argument.  The result relation has the same
-heading as the input relations, and its body contains only the tuples that
-are in both of the inputs.  Relational intersection is both a commutative
-and associative operation, and its identity value is the same-heading
-universal relation value (having all the tuples that could possible exist
-together in a common relation value with that heading; this is impossibly
-large to represent in the general case, except perhaps lazily).
+C<method intersection of Set::Relation ($topic: Array|Set::Relation
+$others)>
 
-=item C<method difference of Set::Relation ($source: Set::Relation
-$filter)>
+This functional method results in the relational intersection/and of the
+collective N element values of its same-heading invocant and argument,
+hereafter referred to as C<$inputs>; it is a reduction operator that
+recursively takes each pair of input values and relationally intersects
+(which is both commutative and associative) them together until just one is
+left, which is the result.  The result relation has the same heading as all
+of its input relations, and its body contains only the tuples that are in
+every one of the input relations.  The identity value of relational
+intersection is the same-heading universal relation value (having all the
+tuples that could possible exist together in a common relation value with
+that heading; this is impossibly large to represent in the general case,
+except perhaps lazily).  Note that this C<intersection> method is
+conceptually a special case of C<join>, applicable when the headings of the
+inputs are the same, and C<join> will produce the same result as this when
+given the same inputs, but with the exception that relational intersection
+has a different identity value for zero inputs than relational join has.
+
+=head2 difference
+
+C<method difference of Set::Relation ($source: Set::Relation $filter)>
 
 This functional method results in the relational difference when its
 C<$filter> argument is subtracted from its same-heading C<$source>
@@ -2260,15 +2543,18 @@ C<$filter>.  Note that this I<difference> operator is conceptually a
 special case of I<semidifference>, applicable when the headings of the
 inputs are the same.
 
-=item C<method semidifference of Set::Relation ($source: Set::Relation
-$filter)>
+=head2 semidifference
+
+C<method semidifference of Set::Relation ($source: Set::Relation $filter)>
 
 This functional method is the same as C<semijoin> but that it results in
 the complementary subset of tuples of C<$source> when given the same
 arguments.  Note that this operation is also legitimately known as
 I<antijoin> or I<anti-semijoin>.
 
-=item C<method semijoin of Set::Relation ($source: Set::Relation $filter)>
+=head2 semijoin
+
+C<method semijoin of Set::Relation ($source: Set::Relation $filter)>
 
 This functional method results in the relational semijoin of its invocant
 and argument.  The result relation has the same heading as C<$source>, and
@@ -2278,35 +2564,46 @@ short-hand for first doing an ordinary relational join between C<$source>
 and C<$filter>, and then performing a relational projection on all of the
 attributes that just C<$source> has.
 
-=item C<method join of Set::Relation ($topic: Set::Relation $other)>
+=head2 join
+
+C<method join of Set::Relation ($topic: Array|Set::Relation $others)>
 
 This functional method results in the relational join (natural inner join)
-of its invocant and argument.  The result relation has a heading that is a
-union of the headings of the input relations, and its body is the result of
-first pairwise-matching every tuple of the input relations, then where each
-member of a tuple pair has attribute names in common, eliminating pairs
-where the values of those attributes differ and unioning the remaining said
-tuple pairs, then eliminating any result tuples that duplicate others.
-Relational join is both a commutative and associative operation, and its
-identity value is the relation value having zero attributes and a single
-tuple.  As a trivial case, if either input relation has zero tuples, then
-the method's result will too; or, if either input is the nullary relation
-with one tuple, the result is the other input (see identity value); or, if
-the inputs have no attribute names in common, then the join of those is a
-cartesian product; or, if the inputs have all attribute names in common,
-then the join of those is an intersection; or, if one input's set of
-attribute names is a proper subset of the other's, then the join of just
-those two is a semijoin with the former filtering the latter.
+of the collective N element values of its invocant and argument, hereafter
+referred to as C<$inputs>; it is a reduction operator that recursively
+takes each pair of input values and relationally joins (which is both
+commutative and associative) them together until just one is left, which is
+the result.  The result relation has a heading that is a union of all of
+the headings of its input relations, and its body is the result of first
+pairwise-matching every tuple of each input relation with every tuple of
+each other input relation, then where each member of a tuple pair has
+attribute names in common, eliminating pairs where the values of those
+attributes differ and unioning the remaining said tuple pairs, then
+eliminating any result tuples that duplicate others.  The identity value of
+relational join is the nullary (zero attribute) relation value having a
+single tuple.  As a trivial case, if any input relation has zero tuples,
+then the function's result will too; or, if any input is the nullary
+relation with one tuple, that input can be ignored (see identity value);
+or, if any 2 inputs have no attribute names in common, then the join of
+just those 2 is a cartesian product; or, if any 2 inputs have all attribute
+names in common, then the join of just those 2 is an intersection; or, if
+for 2 inputs, one's set of attribute names is a proper subset of another's,
+then the join of just those two is a semijoin with the former filtering the
+latter.
 
-=item C<method product of Set::Relation ($topic: Set::Relation $other)>
+=head2 product
+
+C<method product of Set::Relation ($topic: Array|Set::Relation $others)>
 
 This functional method results in the relational cartesian/cross product of
-its invocant and argument; it is conceptually a special case of C<join>
-where the input relations have mutually distinct attribute names; unlike
+the collective N element values of its invocant and argument, hereafter
+referred to as C<$inputs>; it is conceptually a special case of C<join>
+where all input relations have mutually distinct attribute names; unlike
 C<join>, C<product> will fail if any inputs have attribute names in common.
 
-=item C<method quotient of Set::Relation ($dividend: Set::Relation
-$divisor)>
+=head2 quotient
+
+C<method quotient of Set::Relation ($dividend: Set::Relation $divisor)>
 
 This functional method results in the quotient when its C<$dividend>
 invocant is divided by its C<$divisor> argument using relational division.
@@ -2319,7 +2616,9 @@ tuples C<{X}> such that a tuple C<{X,Y}> appears in C<A> for all tuples
 C<{Y}> appearing in C<B>; that is, C<A / B> is shorthand for C<A{X} -
 ((A{X} * B) - A){X}>.
 
-=item C<method composition of Set::Relation ($topic: Set::Relation $other)>
+=head2 composition
+
+C<method composition of Set::Relation ($topic: Set::Relation $other)>
 
 This functional method results in the relational composition of its
 mutually commutative invocant and argument.  It is conceptually a
@@ -2328,8 +2627,6 @@ relations, and then performing a relational projection on all of the
 attributes that only one of the arguments has; that is, the result has all
 of and just the attributes that were not involved in matching the tuples of
 the inputs.
-
-=back
 
 =head1 DIAGNOSTICS
 
@@ -2423,8 +2720,8 @@ practical way of suggesting improvements to the standard version.
 
 =item Todd Hepler (C<thepler@employees.org>)
 
-Thanks for providing files for the test suite, module bug fixes, and other
-constructive input.
+Thanks for proposing significant module design improvements and bug fixes,
+providing files for the test suite, and giving other constructive input.
 
 =back
 

@@ -1,6 +1,80 @@
                                Set::Relation
 ---------------------------------------------------------------------------
 
+2009-01-31   Darren Duncan <perl@DarrenDuncan.net>
+
+    * Set::Relation version 0.1.0 for Perl 5 is released on CPAN as
+    Set-Relation-0.1.0.tar.gz.
+
+    * This release features a few API changes, some significant feature
+    additions, and bug fixes to existing routines, but no public facing
+    routines have been added or removed.  New routines should feature in
+    the next 0.Y.0 release.
+
+    * (Relation.pm)  Updated each of the 5 functional methods ["union",
+    "exclusion", "intersection", "join", "product"] so it is now an N-adic
+    operator rather than a dyadic operator.  Each method's "other"
+    parameter was renamed to "others" and now takes either a single
+    Set::Relation object as before or an Array of 0..N Set::Relation
+    objects which is new.  With this change, these operators are now at
+    feature parity with the Muldis D functions they are based on, except
+    that they never handle the niladic option; being object methods, there
+    is always at least one operand which is the invocant.
+
+    * (Relation.pm)  Updated each of the 4 functional methods
+    ["(|cmpl_)restriction", "extension", "map"] to remove its optional
+    "assuming" parameter.  This parameter was a fossil left over from the
+    original Muldis D versions of these operators that the Perl version was
+    ported from; the parameter was necessary in Muldis D to have reasonable
+    flexibility due to Muldis D lacking certain other features that Perl
+    has, which make this parameter unnecessary in Perl.  The removal was to
+    keep the Perl simpler; it also sets the stage for the next change item.
+
+    * (Relation.pm, Set_Relation_51_Database_in_Depth_Example.t)  Updated
+    each of the 4 functional methods ["(|cmpl_)restriction", "extension",
+    "map"] so that the Perl routine supplied as its "func" argument is now
+    assumed to have zero parameters rather than one, and the Perl routine
+    is now supplied its input tuple/Hash in $_, same as how Perl's built-in
+    map/grep operators work, rather than as a first/only argument.  Thanks
+    to Todd Hepler for proposing that design change to "restriction" to
+    make it more DWIM.
+
+    * (Relation.pm, Set_Relation_51_Database_in_Depth_Example.t)  Updated
+    each of the 4 functional methods ["(|cmpl_)projection", "extension",
+    "map"] so that the "(|result_)attrs" parameter can also take a Str
+    argument rather than just an Array of Str argument.  Thanks to Todd
+    Hepler for proposing that design change to "projection" to make it more
+    DWIM.  Also updated the Set::Relation constructor submethod similarly,
+    so its "members" parameter may also take a Str argument; this would
+    produce a relation object with 1 attribute and zero tuples.
+
+    * (Relation.pm)  Fixed an "insert" mutator method bug so it detects
+    and blocks attempts to insert the invocant Set::Relation object into
+    itself as a value-typed component, which would have had the side-effect
+    of freezing the invocant, or would have conceptually been an infinite
+    recursive deep copy operation; also fixed the "delete" mutator with
+    the same detector since it would have had the same freezing problem.
+
+    * (Relation.pm)  Updated all routines that take tuple-representing Hash
+    values from the user, either directly or as tuple-valued attrs, either
+    as a routine argument or a closure return value, so that each Hash is
+    tested for circular references between itself or its value-typed
+    components; this update fixes a general bug where the module could
+    infinitely recurse when processing that input, since tuple-representing
+    input from the user is deep-copied.
+
+    * (Relation.pm)  Some POD reformatting:  Took what used to be the 5
+    level-2 headings under the INTERFACE level-1 heading and changed said 5
+    into level-1 headings, but did not uppercase their text.  Then
+    converted the routine lists from being "=over/=item <routine>/=back" to
+    each routine having its own level-2 heading.  For each routine, the new
+    heading is just the short name of the routine, and the full signature
+    of the routine displays just as its own paragraph.  All these changes
+    combined should look visually like we are faking 3 levels of headings,
+    with top and middle being upcased and mixed case "=head1" respectively.
+
+    * (Relation.pm)  Minor POD updates and fixes.
+
 2009-01-26   Darren Duncan <perl@DarrenDuncan.net>
 
     * Set::Relation version 0.0.2 for Perl 5 is released on CPAN as
