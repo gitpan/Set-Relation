@@ -7,7 +7,7 @@ use warnings FATAL => 'all';
 ###########################################################################
 
 { package Set::Relation; # class
-    use version 0.74; our $VERSION = qv('0.1.0');
+    use version 0.74; our $VERSION = qv('0.2.0');
 
     use Moose 0.65;
 
@@ -336,6 +336,16 @@ sub _normalize_true_want_ord_attrs_arg {
 
 ###########################################################################
 
+sub slice {
+    confess q{this routine isn't implemented yet};
+}
+
+sub attr {
+    confess q{this routine isn't implemented yet};
+}
+
+###########################################################################
+
 sub evacuate {
     my ($topic) = @_;
     confess q{evacuate(): Can't mutate invocant having a frozen identity.}
@@ -619,6 +629,14 @@ sub is_nullary {
     return $topic->degree() == 0;
 }
 
+sub has_attrs {
+    confess q{this routine isn't implemented yet};
+}
+
+sub attr_names {
+    confess q{this routine isn't implemented yet};
+}
+
 ###########################################################################
 
 sub is_empty {
@@ -796,6 +814,45 @@ sub cmpl_projection {
 
     return $topic->_projection(
         [grep { !$cproj_h->{$_} } keys %{$topic_h}] );
+}
+
+###########################################################################
+
+sub wrap {
+    confess q{this routine isn't implemented yet};
+}
+
+sub cmpl_wrap {
+    confess q{this routine isn't implemented yet};
+}
+
+sub unwrap {
+    confess q{this routine isn't implemented yet};
+}
+
+###########################################################################
+
+sub group {
+    confess q{this routine isn't implemented yet};
+}
+
+sub cmpl_group {
+    confess q{this routine isn't implemented yet};
+}
+
+sub ungroup {
+    confess q{this routine isn't implemented yet};
+}
+
+###########################################################################
+
+sub transitive_closure {
+    my ($topic) = @_;
+    confess q{transitive_closure(): This method may only be invoked on a}
+            . q{ Set::Relation object with exactly 2 (same-typed) attrs.}
+        if $topic->degree() != 2;
+
+    confess q{this routine isn't implemented yet};
 }
 
 ###########################################################################
@@ -992,6 +1049,12 @@ sub map {
 
 ###########################################################################
 
+sub summary {
+    confess q{this routine isn't implemented yet};
+}
+
+###########################################################################
+
 sub _attrs_hr_from_assert_valid_attrs_arg {
     my ($self, $rtn_nm, $arg_nm, $attrs) = @_;
 
@@ -1118,7 +1181,7 @@ sub union {
 
     my $result = $largest->clone();
 
-    my $smaller_bs = [map { $_->_body() } @{$inputs}];
+    my $smaller_bs = [CORE::map { $_->_body() } @{$inputs}];
     my $result_b = $result->_body();
 
     for my $smaller_b (@{$smaller_bs}) {
@@ -1163,7 +1226,7 @@ sub exclusion {
 
     my $result = $largest->clone();
 
-    my $smaller_bs = [map { $_->_body() } @{$inputs}];
+    my $smaller_bs = [CORE::map { $_->_body() } @{$inputs}];
     my $result_b = $result->_body();
 
     for my $smaller_b (@{$smaller_bs}) {
@@ -1213,7 +1276,7 @@ sub _intersection {
     my $result = $smallest->empty();
 
     my $smallest_b = $smallest->_body();
-    my $larger_bs = [map { $_->_body() } @{$inputs}];
+    my $larger_bs = [CORE::map { $_->_body() } @{$inputs}];
     my $result_b = $result->_body();
 
     TUPLE:
@@ -1409,8 +1472,8 @@ sub _join {
 
     if (first { $_->is_empty() } $topic, @{$others}) {
         # At least one input has zero tuples; so does result.
-        my $result_h = {map { %{$_->_heading()} } $topic, @{$others}};
-        return __PACKAGE__->new( members => [keys %{$result_h}] );
+        my $rslt_h = {CORE::map { %{$_->_heading()} } $topic, @{$others}};
+        return __PACKAGE__->new( members => [keys %{$rslt_h}] );
     }
 
     # If we get here, all inputs have at least one tuple.
@@ -1537,8 +1600,8 @@ sub product {
 
     if (first { $_->is_empty() } $topic, @{$others}) {
         # At least one input has zero tuples; so does result.
-        my $result_h = {map { %{$_->_heading()} } $topic, @{$others}};
-        return __PACKAGE__->new( members => [keys %{$result_h}] );
+        my $rslt_h = {CORE::map { %{$_->_heading()} } $topic, @{$others}};
+        return __PACKAGE__->new( members => [keys %{$rslt_h}] );
     }
 
     # If we get here, all inputs have at least one tuple.
@@ -1732,6 +1795,68 @@ sub _want_index {
 
 ###########################################################################
 
+sub join_with_group {
+    confess q{this routine isn't implemented yet};
+}
+
+###########################################################################
+
+sub rank {
+    confess q{this routine isn't implemented yet};
+}
+
+sub limit {
+    confess q{this routine isn't implemented yet};
+}
+
+###########################################################################
+
+sub substitution {
+    confess q{this routine isn't implemented yet};
+}
+
+sub static_substitution {
+    confess q{this routine isn't implemented yet};
+}
+
+###########################################################################
+
+sub substitution_in_restriction {
+    confess q{this routine isn't implemented yet};
+}
+
+sub static_substitution_in_restriction {
+    confess q{this routine isn't implemented yet};
+}
+
+sub substitution_in_semijoin {
+    confess q{this routine isn't implemented yet};
+}
+
+sub static_substitution_in_semijoin {
+    confess q{this routine isn't implemented yet};
+}
+
+###########################################################################
+
+sub outer_join_with_group {
+    confess q{this routine isn't implemented yet};
+}
+
+sub outer_join_with_undefs {
+    confess q{this routine isn't implemented yet};
+}
+
+sub outer_join_with_static_extension {
+    confess q{this routine isn't implemented yet};
+}
+
+sub outer_join_with_extension {
+    confess q{this routine isn't implemented yet};
+}
+
+###########################################################################
+
 } # class Set::Relation
 
 ###########################################################################
@@ -1751,7 +1876,7 @@ Relation data type for Perl
 
 =head1 VERSION
 
-This document describes Set::Relation version 0.1.0 for Perl 5.
+This document describes Set::Relation version 0.2.0 for Perl 5.
 
 =head1 SYNOPSIS
 
@@ -2193,7 +2318,8 @@ C<body> on the same invocant with a non-Array but true valued
 C<$want_ord_attrs> then the default order of the ordered attributes
 resulting from C<body> matches the default order resulting from C<heading>;
 in contrast, if C<body> was invoked to return attributes in named format,
-it doesn't matter what order C<heading> returns their names in.
+it doesn't matter what order C<heading> returns their names in.  This
+method is currently an alias for the C<attr_names> functional method.
 
 =head2 body
 
@@ -2202,6 +2328,29 @@ C<method body of Array ($self: Bool|Array $want_ord_attrs?)>
 This method results in a Perl Array value whose elements are the tuples of
 the invocant.  Each tuple is either a Perl Hash or a Perl Array depending
 on the value of the C<$want_ord_attrs>, like with the C<members> method.
+
+=head2 TODO - slice
+
+C<method slice of Array ($self: Array|Str $attrs, Bool $want_ord_attrs?)>
+
+This method is like C<body> except that the result has just a subset of the
+attributes of the invocant, those named by C<$attrs>.  Unlike using
+C<projection> followed by C<body> to do this, any duplicate subtuples are
+retained in the result of C<slice>.  Each result subtuple is either a Perl
+Hash or a Perl Array depending on the value of the C<$want_ord_attrs>, like
+with C<body>, except that C<$want_ord_attrs> may only be a Bool here; when
+that argument is true, the exported attributes are in the same order as
+specified in C<$attrs>.
+
+=head2 TODO - attr
+
+C<method attr of Array ($self: Str $name)>
+
+This method is like C<slice> except that the result has exactly one of the
+invocant's attributes, the one named by C<$name>, and each result element
+is that attribute value directly, not a single-element tuple.  This method
+is expected to see a lot of use in relation summarizing operations, for
+extracting the input values for reduction or aggregate operators.
 
 =head1 Mutator Methods
 
@@ -2257,6 +2406,23 @@ C<method is_nullary of Bool ($topic:)>
 
 This functional method results in true iff its invocant has a degree of
 zero (that is, it has zero attributes), and false otherwise.
+
+=head2 TODO - has_attrs
+
+C<method has_attrs of Bool ($topic: Array $attrs)>
+
+This functional method results in true iff, for every one of the attribute
+names specified by its argument, its invocant has an attribute with that
+name; otherwise it results in false.  As a trivial case, this method's
+result is true if its argument is empty.
+
+=head2 TODO - attr_names
+
+C<method attr_names of Array ($topic:)>
+
+This functional method results in the set of the names of the attributes of
+its invocant.  This method is currently an alias for the C<heading>
+accessor method.
 
 =head2 cardinality
 
@@ -2342,6 +2508,127 @@ C<method cmpl_projection of Set::Relation ($topic: Array|Str $attrs)>
 This functional method is the same as C<projection> but that it results in
 the complementary subset of attributes of its invocant when given the same
 argument.
+
+=head2 TODO - wrap
+
+C<method wrap of Set::Relation ($topic: Array|Str $inner, Str $outer)>
+
+This functional method results in a relation value that is the same as its
+C<$topic> invocant but that, for each of its member tuples, some of its
+attributes have been wrapped up into a new tuple-typed attribute, which
+exists in place of the original attributes.  The C<$inner> argument
+specifies which C<$topic> attributes are to be removed and wrapped up, and
+the C<$outer> argument specifies the name of their replacement attribute.
+The result relation has the same cardinality as C<$topic>.  As a trivial
+case, if C<$inner> is empty, then the result has all the same attributes as
+before plus a new tuple-typed attribute of degree zero; or, if C<$inner>
+lists all attributes of C<$topic>, then for each of its member tuples
+C<TT>, the result tuple C<TR> has a single attribute whose value is the
+same as C<TT>.  This method supports the new attribute having the same name
+as an old one being wrapped into it.  This method will fail if C<$inner>
+specifies any attribute names that C<$topic> doesn't have, or if C<$outer>
+is the same as a C<$topic> attribute that isn't being wrapped.
+
+=head2 TODO - cmpl_wrap
+
+C<method cmpl_wrap of Set::Relation ($topic: Array|Str $cmpl_inner, Str
+$outer)>
+
+This functional method is the same as C<wrap> but that it wraps the
+complementary subset of attributes of C<$topic> to those specified by
+C<$cmpl_inner>.
+
+=head2 TODO - unwrap
+
+C<method unwrap of Set::Relation ($topic: Str $outer, Array|Str $inner)>
+
+This functional method is the inverse of C<wrap>, such that it will unwrap
+a tuple-type attribute into its member attributes.  This method will fail
+if C<$outer> specifies any attribute name that C<$topic> doesn't have, or
+if C<$topic{$outer}> does not have a same-heading tuple value for every
+tuple of C<$topic> (because then there would be no consistent set of
+attribute names to extend C<$topic> with), or if an attribute of
+C<$topic{$outer}> has the same name as another C<$topic> attribute.  Now,
+C<unwrap> requires the extra C<$inner> argument to prevent ambiguity in the
+general case where C<$topic> might have zero tuples, because in that
+situation the names of the attributes to add to C<$topic> in place of
+C<$topic{$outer}> can not be determined from C<$topic{$outer}>.  This
+method will fail if C<$topic> has at least 1 tuple and C<$inner> does not
+match the names of the attributes of C<$topic{$outer}> for every tuple of
+C<$topic>.
+
+=head2 TODO - group
+
+C<method group of Set::Relation ($topic: Array|Str $inner, Str $outer)>
+
+This functional method is similar to C<wrap> but that the C<$topic>
+attribute-wrapping transformations result in new relation-typed attributes
+rather than new tuple-typed attributes, and moreover multiple C<$topic>
+tuples may be combined into fewer tuples whose new relation-typed
+attributes have multiple tuples.  This method takes a relation of N tuples
+and divides the tuples into M groups where all the tuples in a group have
+the same values in the attributes which aren't being grouped (and distinct
+values in the attributes that are being grouped); it then results in a new
+relation of M tuples where the new relation-valued attribute of the result
+has the tuples of the M groups.  A grouped relation contains all of the
+information in the original relation, but it has less redundancy due to
+redundant non-grouped attributes now just being represented in one tuple
+per the multiple tuples whose grouped attributes had them in common.  A
+relation having relation-valued attributes like this is a common way to
+group so-called child tuples under their parents.  As a trivial case, if
+C<$inner> is empty, then the result has all the same tuples and attributes
+as before plus a new relation-typed attribute of degree zero whose value
+per tuple is of cardinality one; or, if C<$inner> lists all attributes of
+C<$topic>, then the result has a single tuple of a single attribute whose
+value is the same as C<$topic>.  This method supports the new attribute
+having the same name as an old one being grouped into it.  This method
+will fail if C<$inner> specifies any attribute names that C<$topic> doesn't
+have, or if C<$outer> is the same as C<$topic> attributes that aren't being
+grouped.
+
+=head2 TODO - cmpl_group
+
+C<method cmpl_group of Set::Relation ($topic: Array|Str $group_per, Str
+$outer)>
+
+This functional method is the same as C<group> but that it groups the
+complementary subset of attributes of C<$topic> to those specified by
+C<$group_per>.
+
+=head2 TODO - ungroup
+
+C<method ungroup of Set::Relation ($topic: Str $outer, Array|Str $inner)>
+
+This functional method is the inverse of C<group> as C<unwrap> is to
+C<wrap>; it will ungroup a relation-type attribute into its member
+attributes and tuples.  A relation can be first grouped and then that
+result ungrouped to produce the original relation, with no data loss.
+However, the ungroup of a relation on a relation-valued attribute will lose
+the information in any outer relation tuples whose inner relation value has
+zero tuples; a group on this result won't bring them back.  This method
+will fail if C<$outer> specifies any attribute name that C<$topic> doesn't
+have, or if C<$topic{$outer}> does not have a same-heading relation value
+for every tuple of C<$topic> (because then there would be no consistent set
+of attribute names to extend C<$topic> with), or if an attribute of
+C<$topic{$outer}> has the same name as another C<$topic> attribute.
+
+=head2 TODO - transitive_closure
+
+C<method transitive_closure of Set::Relation ($topic:)>
+
+This functional method results in the transitive closure of its invocant.
+The invocant must be a binary relation whose attributes are both of the
+same type (for whatever concept of "type" you want to have), and the result
+is a relation having the same heading and a body which is a superset of the
+invocant's tuples.  Assuming that the invocant represents all of the node
+pairs in a directed graph that have an arc between them, and so each
+invocant tuple represents an arc, C<transitive_closure> will determine all
+of the node pairs in that graph which have a path between them (a recursive
+operation), so each tuple of the result represents a path.  The result is a
+superset since all arcs are also complete paths.  The C<transitive_closure>
+function is intended to support recursive queries, such as in connection
+with the "part explosion problem" (the problem of finding all components,
+at all levels, of some specified part).
 
 =head2 restriction
 
@@ -2434,6 +2721,42 @@ known (we don't generally assume that C<map> can reverse-engineer C<$func>
 to see what attributes it would have resulted in).  This method will fail
 if C<$topic> has at least 1 tuple and the result of C<$func> does not have
 matching attribute names to those named by C<$result_attrs>.
+
+=head2 TODO - summary
+
+C<method summary of Set::Relation ($topic: Array|Str $group_per, Array|Str
+$result_attrs, Code $summ_func)>
+
+This functional method provides a convenient context for using aggregate
+functions to derive a per-group summary relation, which is its result, from
+another relation, which is its C<$topic> invocant.  This method first
+performs a C<cmpl_group> on C<$topic> using C<$group_per> to specify which
+attributes get grouped into a new relation-valued attribute and which
+don't; those that don't instead get wrapped into a tuple-valued attribute.
+Then, per binary tuple in the main relation, this method applies the
+tuple/Hash-resulting zero-parameter Perl subroutine reference given in its
+C<$summ_func> argument; for each post-group main relation tuple, the
+subroutine given in C<$summ_func> results in a second tuple when the first
+tuple is its C<$_> topic; the C<$_> tuple has the 2 attribute names
+C<summarize> and C<per>, which are valued with the relation-valued
+attribute and tuple-valued attribute, respectively.  As per a subroutine
+that C<map> applies, the subroutine given in C<$summ_func> effectively
+takes a whole post-grouping input tuple and results in a whole tuple; the
+applied subroutine would directly invoke any N-adic / aggregate operators,
+and extract their inputs from (or calculate) C<summarize> as it sees fit.
+Note that C<summary> is not intended to be used to summarize an entire
+C<$topic> relation at once (except by chance of it resolving to 1 group);
+you should instead invoke your summarize-all C<$summ_func> directly, or
+inline it, rather than by way of C<summary>, especially if you want a
+single-tuple result on an empty C<$topic> (which C<summary>) won't do.
+Now, C<summary> requires the extra C<$result_attrs> argument to prevent
+ambiguity in the general case where C<$topic> might have zero tuples,
+because in that situation, C<$summ_func> would never be invoked, and the
+names of the attributes of the result are not known (we don't generally
+assume that C<summary> can reverse-engineer C<$summ_func> to see what
+attributes it would have resulted in).  This method will fail if C<$topic>
+has at least 1 tuple and the result of C<$summ_func> does not have matching
+attribute names to those named by C<$result_attrs>.
 
 =head1 Multiple Input Relation Functional Methods
 
@@ -2582,7 +2905,7 @@ attributes differ and unioning the remaining said tuple pairs, then
 eliminating any result tuples that duplicate others.  The identity value of
 relational join is the nullary (zero attribute) relation value having a
 single tuple.  As a trivial case, if any input relation has zero tuples,
-then the function's result will too; or, if any input is the nullary
+then the method's result will too; or, if any input is the nullary
 relation with one tuple, that input can be ignored (see identity value);
 or, if any 2 inputs have no attribute names in common, then the join of
 just those 2 is a cartesian product; or, if any 2 inputs have all attribute
@@ -2627,6 +2950,204 @@ relations, and then performing a relational projection on all of the
 attributes that only one of the arguments has; that is, the result has all
 of and just the attributes that were not involved in matching the tuples of
 the inputs.
+
+=head2 TODO - join_with_group
+
+C<method join_with_group of Set::Relation ($primary: Set::Relation
+$secondary, Str $group_attr)>
+
+This functional method is a short-hand for first taking a (natural inner)
+C<join> of its C<$primary> invocant and C<$secondary> argument, and then
+taking a C<group> on all of the attributes that only the C<$secondary>
+argument had, such that the attribute resulting from the group has the name
+C<$group_attr>.  The result has 1 tuple for every tuple of C<$primary>
+where at least 1 matching tuple exists in C<$secondary>.  This function
+will fail if C<$group_attr> is the same name as any source attribute that
+wasn't grouped.  This method is a convenient tool for gathering both parent
+and child records from a database using a single query while avoiding
+duplication of the parent record values.
+
+=head1 Relational Ranking and Quota Functional Methods
+
+These Set::Relation object methods are pure functional.  They are specific
+to supporting ranking and quotas.
+
+=head2 TODO - rank
+
+C<method rank of Set::Relation ($topic: Str $name, Code $ord_func)>
+
+This functional method results in the relational extension of its C<$topic>
+invocant by a single nonnegative-integer-typed attribute whose name is
+provided by the C<$name> argument, where the value of the new attribute for
+each tuple is the rank of that tuple as determined by the Order-resulting
+zero-parameter Perl subroutine reference given in its C<$ord_func>
+argument.  The subroutine compares tuples, similarly to Perl's built-in
+C<sort> operator, with each invocation of it having a C<$_> topic whose
+value is a binary tuple/Hash with attributes named C<a> and C<b>, each of
+the latter having a C<$topic> tuple as its value.  The new attribute of
+C<rank>'s result has a value of zero for its ranked-first tuple, and each
+further consecutive ranked tuple has the next larger integer value.  Note
+that C<rank> provides the functionality of SQL's "RANK" feature but that
+the result of C<rank> is always a total ordering and so there is no "dense"
+/ "not dense" distinction (however a partial ordering can be implemented
+over it).
+
+=head2 TODO - limit
+
+C<method limit of Set::Relation ($topic: Code $ord_func, UInt $min_rank,
+UInt $max_rank)>
+
+This functional method results in the relational restriction of its
+C<$topic> argument as determined by first ranking its tuples as per C<rank>
+function (using C<$ord_func>) and then keeping just those tuples whose rank
+is within the inclusive range specified by the C<$min_rank> and
+C<$max_rank> arguments (C<rank>'s extra attribute is not kept).  The
+C<limit> function implements a certain kind of quota query where all the
+result tuples are consecutive in their ranks.  This function will fail if
+C<$max_rank> is before C<$min_rank>.  It is valid for C<$min_rank> or
+C<$max_rank> to be greater than the maximum rank of the source tuples; in
+the first case, the result has zero tuples; in the second case, the result
+has all remaining tuples starting at C<min_rank>.  If C<$topic> has any
+tuples and C<$min_rank> matches the rank of a source tuple, then the result
+will always have at least 1 tuple.  Note that C<limit> provides the
+functionality of SQL's "LIMIT/OFFSET" feature in combination with "ORDER
+BY" but that the result tuples of C<limit> do not remain ordered.
+
+=head1 Relational Substitution Functional Methods
+
+These Set::Relation object methods are pure functional.  They are specific
+to supporting substitutions.
+
+=head2 TODO - substitution
+
+C<method substitution of Set::Relation ($topic: Array|Str $attrs, Code
+$func)>
+
+This functional method is similar to C<extension> except that it
+substitutes values of existing relation attributes rather than adding new
+attributes.  The result relation has the same heading as C<$topic>.  The
+result tuple of the Perl subroutine reference given in C<$func> must have a
+heading that is a subset of the heading of C<$topic>; corresponding values
+resulting from the subroutine given in C<$func> will replace the values of
+the tuples of C<$topic>.  The result relation has a cardinality that is the
+same as that of C<$topic>, unless the result of any substitutions was
+redundant tuples, in which case the result has appropriately fewer tuples.
+As a trivial case, if C<$func> is defined to unconditionally result in
+either the degree-zero tuple or in the same tuple as its own C<$topic>
+argument, then this method results simply in C<$topic>; or, if C<$func> is
+defined to have a static result and it replaces all attributes, then this
+method's result will have just 0..1 tuples.  Now, strictly speaking,
+C<substitution> could conceivably be implemented such that each result from
+C<$func> is allowed to specify replacement values for different subsets of
+C<$topic> attributes; however, to improve the method's predictability and
+ease of implementation over disparate foundations, C<substitution> requires
+the extra C<$attrs> argument so that users can specify a consistent subset
+that C<$func> will update (possibly to itself).  This method will fail if
+C<$topic> has at least 1 tuple and the result of C<$func> does not have
+matching attribute names to those named by C<$attrs>.
+
+=head2 TODO - static_substitution
+
+C<method static_substitution of Set::Relation ($topic: Hash $attrs)>
+
+This functional method is a simpler-syntax alternative to C<substitution>
+in the typical scenario where every tuple of a relation, given in the
+C<$topic> invocant, is updated with identical values for the same
+attributes; the new attribute values are given in the C<$attrs> argument.
+
+=head2 TODO - substitution_in_restriction
+
+C<method substitution_in_restriction of Set::Relation ($topic: Code
+$restr_func, Array|Str $subst_attrs, Code $subst_func)>
+
+This functional method is like C<substitution> except that it only
+transforms a subset of the tuples of C<$topic> rather than all of them.  It
+is a short-hand for first separating the tuples of C<$topic> into 2 groups
+where those passed by a relational restriction (defined by C<$restr_func>)
+are then transformed (defined by C<$subst_attrs> and C<$subst_func>), then
+the result of the substitution is unioned with the un-transformed group.
+See also the C<substitution_in_semijoin> method, which is a simpler-syntax
+alternative for C<substitution_in_restriction> in its typical usage where
+restrictions are composed simply of anded or ored tests for attribute value
+equality.
+
+=head2 TODO - static_substitution_in_restriction
+
+C<method static_substitution_in_restriction of Set::Relation ($topic: Code
+$restr_func, Hash $subst)>
+
+This functional method is to C<substitution_in_restriction> what
+C<static_substitution> is to C<substitution>.  See also the
+C<static_substitution_in_semijoin> function.
+
+=head2 TODO - substitution_in_semijoin
+
+C<method substitution_in_semijoin of Set::Relation ($topic: Set::Relation
+$restr, Array|Str $subst_attrs, Code $subst_func)>
+
+This functional method is like C<substitution_in_restriction> except that
+the subset of the tuples of C<$topic> to be transformed is determined by
+those matched by a semijoin with C<$restr> rather than those that pass a
+generic relational restriction.
+
+=head2 TODO - static_substitution_in_semijoin
+
+C<method static_substitution_in_semijoin of Set::Relation ($topic:
+Set::Relation $restr, Hash $subst)>
+
+This functional method is to C<substitution_in_semijoin> what
+C<static_substitution> is to C<substitution>.
+
+=head1 Relational Outer-Join Functional Methods
+
+These Set::Relation object methods are pure functional.  They are specific
+to supporting outer-joins.
+
+=head2 TODO - outer_join_with_group
+
+C<method outer_join_with_group of Set::Relation ($primary: Set::Relation
+$secondary, Str $group_attr)>
+
+This functional method is the same as C<join_with_group> except that it
+results in a half-outer natural join rather than an inner natural join;
+every tuple of C<$primary> has exactly 1 corresponding tuple in the result,
+but where there were no matching C<$secondary> tuples, the result attribute
+named by C<$group_attr> contains zero tuples rather than 1+.
+
+=head2 TODO - outer_join_with_undefs
+
+C<method outer_join_with_undefs of Set::Relation ($primary: Set::Relation
+$secondary)>
+
+This functional method results in a plain half-outer natural join of its
+C<$primary> invocant and C<$secondary> argument where, for all result
+tuples coming from a C<$primary> tuple that didn't match a C<$secondary>
+tuple, the result attributes coming from just C<$secondary> are filled with
+the Perl undef.
+
+=head2 TODO - outer_join_with_static_extension
+
+C<method outer_join_with_static_extension of Set::Relation ($primary:
+Set::Relation $secondary, Hash $filler)>
+
+This functional method is the same as C<outer_join_with_undefs> but that
+C<$secondary>-sourced result attributes are not filled with the Perl undef;
+rather, for result tuples from non-matches, the missing values are provided
+explicitly from the C<$filler> argument, which is a tuple/Hash whose
+heading matches the projection of C<$secondary>'s attributes that aren't in
+common with C<$primary>, and whose body is the literal values to use for
+those missing attribute values.
+
+=head2 TODO - outer_join_with_extension
+
+C<method outer_join_with_extension of Set::Relation ($primary:
+Set::Relation $secondary, Code $exten_func)>
+
+This functional method is the same as C<outer_join_with_static_extension>
+but that the result tuples from non-matches are the result of performing a
+relational extension on the un-matched C<$primary> tuples such that each
+said result tuple is determined by applying the Perl subroutine given in
+C<$exten_func> to each said C<$primary> tuple.
 
 =head1 DIAGNOSTICS
 

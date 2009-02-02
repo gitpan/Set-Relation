@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:                Set-Relation
-version:             0.1.0
+version:             0.2.0
 abstract:            Relation data type for Perl
 license:             lgpl
 author:              
