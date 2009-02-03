@@ -7,7 +7,7 @@ use warnings FATAL => 'all';
 ###########################################################################
 
 { package Set::Relation; # class
-    use version 0.74; our $VERSION = qv('0.2.0');
+    use version 0.74; our $VERSION = qv('0.3.0');
 
     use Moose 0.65;
 
@@ -325,7 +325,7 @@ sub _normalize_true_want_ord_attrs_arg {
             . q{ it must be either undefined|false or the scalar value '1'}
             . q{ or an array-ref of attr names whose degree and}
             . q{ elements match the heading of the invocant.}
-        if not ($want_ord_attrs eq '1'
+        if not (!ref $want_ord_attrs and $want_ord_attrs eq '1'
             or ref $want_ord_attrs eq 'ARRAY'
                 and @{$want_ord_attrs} == @{$attr_names}
                 and !grep { !exists $heading->{$_} } @{$want_ord_attrs});
@@ -337,11 +337,51 @@ sub _normalize_true_want_ord_attrs_arg {
 ###########################################################################
 
 sub slice {
-    confess q{this routine isn't implemented yet};
+    my ($self, $attrs, $want_ord_attrs) = @_;
+
+    (my $proj_h, $attrs) = $self->_attrs_hr_from_assert_valid_attrs_arg(
+        'slice', '$attrs', $attrs );
+    my (undef, undef, $proj_only)
+        = $self->_ptn_conj_and_disj( $self->_heading(), $proj_h );
+    confess q{slice(): Bad $attrs arg; that attr list}
+            . q{ isn't a subset of the invocant's heading.}
+        if @{$proj_only} > 0;
+
+    my $body = $self->_body();
+
+    if ($want_ord_attrs) {
+        confess q{slice(): Bad $want_ord_attrs arg; it must be}
+                . q{ either undefined|false or the scalar value '1'.}
+            if $want_ord_attrs ne '1';
+        $body = [CORE::map { $self->_export_ofmt_tuple(
+            $attrs, $_ ) } values %{$body}];
+    }
+    else {
+        $body = [CORE::map {
+            my $t = $_;
+            $t = {CORE::map { ($_ => $t->{$_}) } @{$attrs}};
+            $self->_export_nfmt_tuple( $t );
+        } values %{$body}];
+    }
+
+    return $body;
 }
 
 sub attr {
-    confess q{this routine isn't implemented yet};
+    my ($self, $name) = @_;
+
+    $self->_assert_valid_atnm_arg( 'attr', '$name', $name );
+    confess q{attr(): Bad $name arg; that attr name}
+            . q{ doesn't match an attr of the invocant's heading.}
+        if !exists $self->_heading()->{$name};
+
+    return [CORE::map {
+            my $atvl = $_->{$name}->[0];
+            if (ref $atvl eq 'HASH') {
+                $atvl = $self->_export_nfmt_tuple( $atvl );
+            }
+            $atvl;
+        } values %{$self->_body()}];
 }
 
 ###########################################################################
@@ -630,11 +670,17 @@ sub is_nullary {
 }
 
 sub has_attrs {
-    confess q{this routine isn't implemented yet};
+    my ($topic, $attrs) = @_;
+    (my $proj_h, $attrs) = $topic->_attrs_hr_from_assert_valid_attrs_arg(
+        'has_attrs', '$attrs', $attrs );
+    my (undef, undef, $proj_only)
+        = $topic->_ptn_conj_and_disj( $topic->_heading(), $proj_h );
+    return @{$proj_only} == 0;
 }
 
 sub attr_names {
-    confess q{this routine isn't implemented yet};
+    my ($topic) = @_;
+    return [sort keys %{$topic->_heading()}];
 }
 
 ###########################################################################
@@ -750,9 +796,8 @@ sub _rename {
 sub projection {
     my ($topic, $attrs) = @_;
 
-    (my $proj_h, $attrs)
-        = $topic->_attrs_hr_from_assert_valid_attrs_arg(
-            'projection', '$attrs', $attrs );
+    (my $proj_h, $attrs) = $topic->_attrs_hr_from_assert_valid_attrs_arg(
+        'projection', '$attrs', $attrs );
     my (undef, undef, $proj_only)
         = $topic->_ptn_conj_and_disj( $topic->_heading(), $proj_h );
     confess q{projection(): Bad $attrs arg; that attr list}
@@ -803,9 +848,8 @@ sub cmpl_projection {
 
     my $topic_h = $topic->_heading();
 
-    (my $cproj_h, $attrs)
-        = $topic->_attrs_hr_from_assert_valid_attrs_arg(
-            'cmpl_projection', '$attrs', $attrs );
+    (my $cproj_h, $attrs) = $topic->_attrs_hr_from_assert_valid_attrs_arg(
+        'cmpl_projection', '$attrs', $attrs );
     my (undef, undef, $cproj_only)
         = $topic->_ptn_conj_and_disj( $topic_h, $cproj_h );
     confess q{cmpl_projection(): Bad $attrs arg; that attr list}
@@ -848,11 +892,58 @@ sub ungroup {
 
 sub transitive_closure {
     my ($topic) = @_;
+
     confess q{transitive_closure(): This method may only be invoked on a}
             . q{ Set::Relation object with exactly 2 (same-typed) attrs.}
         if $topic->degree() != 2;
 
-    confess q{this routine isn't implemented yet};
+    if ($topic->cardinality() < 2) {
+        # Can't create paths of 2+ arcs when not more than 1 arc exists.
+        return $topic;
+    }
+
+    # If we get here, there are at least 2 arcs, so there is a chance they
+    # may connect into longer paths.
+
+    my ($atnm1, $atnm2) = sort keys %{$topic->_heading()};
+
+    return $topic->_rename( { $atnm1 => 'x', $atnm2 => 'y' } )
+        ->_transitive_closure_of_xy()
+        ->_rename( { 'x' => $atnm1, 'y' => $atnm2 } );
+}
+
+# TODO: Reimplement transitive_closure to do all the work internally rather
+# than farming out to rename/join/projection/union/etc; this should make
+# performance an order of magnitude better and without being complicated.
+
+sub _transitive_closure_of_xy {
+    my ($xy) = @_;
+
+    my $xyz = $xy->_rename( { 'x' => 'y', 'y' => 'z' } )
+        ->_regular_join( $xy, ['y'], ['z'], ['x'] );
+
+    if ($xyz->is_empty()) {
+        # No paths of xy connect to any other paths of xy.
+        return $xy;
+    }
+
+    # If we get here, then at least one pair of paths in xy can connect
+    # to form a longer path.
+
+    my $ttt = $xyz->_projection( ['x', 'z'] )
+        ->_rename( { 'z' => 'y' } )
+        ->_union( [$xy] );
+
+    if ($ttt->_is_identical( $xy )) {
+        # All the longer paths resulting from conn were already in xy.
+        return $xy;
+    }
+
+    # If we get here, then at least one longer path produced above was not
+    # already in xy and was added; so now we need to check if any
+    # yet-longer paths can be made from the just-produced.
+
+    return $ttt->_transitive_closure_of_xy();
 }
 
 ###########################################################################
@@ -914,9 +1005,8 @@ sub cmpl_restriction {
 sub extension {
     my ($topic, $attrs, $func) = @_;
 
-    (my $exten_h, $attrs)
-        = $topic->_attrs_hr_from_assert_valid_attrs_arg(
-            'extension', '$attrs', $attrs );
+    (my $exten_h, $attrs) = $topic->_attrs_hr_from_assert_valid_attrs_arg(
+        'extension', '$attrs', $attrs );
     $topic->_assert_valid_func_arg( 'extension', '$func', $func );
 
     if (@{$attrs} == 0) {
@@ -1079,6 +1169,14 @@ sub _attrs_hr_from_assert_valid_attrs_arg {
     return ($heading, $attrs);
 }
 
+sub _assert_valid_atnm_arg {
+    my ($self, $rtn_nm, $arg_nm, $atnm) = @_;
+    confess qq{$rtn_nm(): Bad $arg_nm arg;}
+            . q{ it should be just be an attr name,}
+            . q{ but it is undefined or is a ref.}
+        if !defined $atnm or ref $atnm;
+}
+
 sub _assert_valid_func_arg {
     my ($self, $rtn_nm, $arg_nm, $func) = @_;
     confess qq{$rtn_nm(): Bad $arg_nm arg;}
@@ -1109,6 +1207,11 @@ sub is_identical {
     confess q{is_identical(): Bad $other arg;}
             . q{ it must be a Set::Relation object.}
         if !blessed $other or !$other->isa( __PACKAGE__ );
+    return $topic->_is_identical( $other );
+}
+
+sub _is_identical {
+    my ($topic, $other) = @_;
     return ($topic->_is_identical_hkeys(
             $topic->_heading(), $other->_heading() )
         and $topic->_is_identical_hkeys(
@@ -1157,9 +1260,13 @@ sub is_disjoint {
 
 sub union {
     my ($topic, $others) = @_;
-
     $others = $topic->_normalize_same_heading_relations_arg(
         'union', '$others', $others );
+    return $topic->_union( $others );
+}
+
+sub _union {
+    my ($topic, $others) = @_;
 
     my $inputs = [
         sort { $b->cardinality() <=> $a->cardinality() }
@@ -1876,7 +1983,7 @@ Relation data type for Perl
 
 =head1 VERSION
 
-This document describes Set::Relation version 0.2.0 for Perl 5.
+This document describes Set::Relation version 0.3.0 for Perl 5.
 
 =head1 SYNOPSIS
 
@@ -2329,7 +2436,7 @@ This method results in a Perl Array value whose elements are the tuples of
 the invocant.  Each tuple is either a Perl Hash or a Perl Array depending
 on the value of the C<$want_ord_attrs>, like with the C<members> method.
 
-=head2 TODO - slice
+=head2 slice
 
 C<method slice of Array ($self: Array|Str $attrs, Bool $want_ord_attrs?)>
 
@@ -2342,7 +2449,7 @@ with C<body>, except that C<$want_ord_attrs> may only be a Bool here; when
 that argument is true, the exported attributes are in the same order as
 specified in C<$attrs>.
 
-=head2 TODO - attr
+=head2 attr
 
 C<method attr of Array ($self: Str $name)>
 
@@ -2407,16 +2514,16 @@ C<method is_nullary of Bool ($topic:)>
 This functional method results in true iff its invocant has a degree of
 zero (that is, it has zero attributes), and false otherwise.
 
-=head2 TODO - has_attrs
+=head2 has_attrs
 
-C<method has_attrs of Bool ($topic: Array $attrs)>
+C<method has_attrs of Bool ($topic: Array|Str $attrs)>
 
 This functional method results in true iff, for every one of the attribute
 names specified by its argument, its invocant has an attribute with that
 name; otherwise it results in false.  As a trivial case, this method's
 result is true if its argument is empty.
 
-=head2 TODO - attr_names
+=head2 attr_names
 
 C<method attr_names of Array ($topic:)>
 
@@ -2612,7 +2719,7 @@ for every tuple of C<$topic> (because then there would be no consistent set
 of attribute names to extend C<$topic> with), or if an attribute of
 C<$topic{$outer}> has the same name as another C<$topic> attribute.
 
-=head2 TODO - transitive_closure
+=head2 transitive_closure
 
 C<method transitive_closure of Set::Relation ($topic:)>
 
@@ -2626,7 +2733,7 @@ invocant tuple represents an arc, C<transitive_closure> will determine all
 of the node pairs in that graph which have a path between them (a recursive
 operation), so each tuple of the result represents a path.  The result is a
 superset since all arcs are also complete paths.  The C<transitive_closure>
-function is intended to support recursive queries, such as in connection
+method is intended to support recursive queries, such as in connection
 with the "part explosion problem" (the problem of finding all components,
 at all levels, of some specified part).
 
@@ -2961,7 +3068,7 @@ C<join> of its C<$primary> invocant and C<$secondary> argument, and then
 taking a C<group> on all of the attributes that only the C<$secondary>
 argument had, such that the attribute resulting from the group has the name
 C<$group_attr>.  The result has 1 tuple for every tuple of C<$primary>
-where at least 1 matching tuple exists in C<$secondary>.  This function
+where at least 1 matching tuple exists in C<$secondary>.  This method
 will fail if C<$group_attr> is the same name as any source attribute that
 wasn't grouped.  This method is a convenient tool for gathering both parent
 and child records from a database using a single query while avoiding
@@ -2999,11 +3106,11 @@ UInt $max_rank)>
 
 This functional method results in the relational restriction of its
 C<$topic> argument as determined by first ranking its tuples as per C<rank>
-function (using C<$ord_func>) and then keeping just those tuples whose rank
+method (using C<$ord_func>) and then keeping just those tuples whose rank
 is within the inclusive range specified by the C<$min_rank> and
 C<$max_rank> arguments (C<rank>'s extra attribute is not kept).  The
-C<limit> function implements a certain kind of quota query where all the
-result tuples are consecutive in their ranks.  This function will fail if
+C<limit> method implements a certain kind of quota query where all the
+result tuples are consecutive in their ranks.  This method will fail if
 C<$max_rank> is before C<$min_rank>.  It is valid for C<$min_rank> or
 C<$max_rank> to be greater than the maximum rank of the source tuples; in
 the first case, the result has zero tuples; in the second case, the result
@@ -3078,7 +3185,7 @@ $restr_func, Hash $subst)>
 
 This functional method is to C<substitution_in_restriction> what
 C<static_substitution> is to C<substitution>.  See also the
-C<static_substitution_in_semijoin> function.
+C<static_substitution_in_semijoin> method.
 
 =head2 TODO - substitution_in_semijoin
 
