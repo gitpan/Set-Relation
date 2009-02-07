@@ -7,7 +7,7 @@ use warnings FATAL => 'all';
 ###########################################################################
 
 { package Set::Relation; # class
-    use version 0.74; our $VERSION = qv('0.4.0');
+    use version 0.74; our $VERSION = qv('0.5.0');
 
     use Scalar::Util 'refaddr';
     use List::Util 'first';
@@ -726,18 +726,27 @@ sub is_member {
 
 sub empty {
     my ($topic) = @_;
+    if ($topic->is_empty()) {
+        return $topic;
+    }
     return __PACKAGE__->new( $topic->heading() );
 }
 
 sub insertion {
     my ($r, $t) = @_;
     $t = $r->_normalize_same_heading_tuples_arg( 'insertion', '$t', $t );
+    if (@{$t} == 0) {
+        return $r;
+    }
     return $r->clone()->_insert( $t );
 }
 
 sub deletion {
     my ($r, $t) = @_;
     $t = $r->_normalize_same_heading_tuples_arg( 'deletion', '$t', $t );
+    if (@{$t} == 0) {
+        return $r;
+    }
     return $r->clone()->_delete( $t );
 }
 
@@ -976,6 +985,10 @@ sub restriction {
 
     $topic->_assert_valid_func_arg( 'restriction', '$func', $func );
 
+    if ($topic->is_empty()) {
+        return $topic;
+    }
+
     my $result = $topic->empty();
 
     my $topic_b = $topic->_body();
@@ -997,10 +1010,55 @@ sub restriction {
     return $result;
 }
 
+sub restriction_and_cmpl {
+    my ($topic, $func) = @_;
+    $topic->_assert_valid_func_arg(
+        'restriction_and_cmpl', '$func', $func );
+    return $topic->_restriction_and_cmpl( $func );
+}
+
+sub _restriction_and_cmpl {
+    my ($topic, $func) = @_;
+
+    if ($topic->is_empty()) {
+        return [$topic, $topic];
+    }
+
+    my $pass_result = $topic->empty();
+    my $fail_result = $topic->empty();
+
+    my $topic_b = $topic->_body();
+    my $pass_result_b = $pass_result->_body();
+    my $fail_result_b = $fail_result->_body();
+
+    for my $tuple_ident_str (keys %{$topic_b}) {
+        my $tuple = $topic_b->{$tuple_ident_str};
+        my $is_matched;
+        {
+            local $_ = $topic->_export_nfmt_tuple( $tuple );
+            $is_matched = $func->();
+        }
+        if ($is_matched) {
+            $pass_result_b->{$tuple_ident_str} = $tuple;
+        }
+        else {
+            $fail_result_b->{$tuple_ident_str} = $tuple;
+        }
+    }
+    $pass_result->_cardinality( scalar keys %{$pass_result_b} );
+    $fail_result->_cardinality( scalar keys %{$fail_result_b} );
+
+    return [$pass_result, $fail_result];
+}
+
 sub cmpl_restriction {
     my ($topic, $func) = @_;
 
     $topic->_assert_valid_func_arg( 'cmpl_restriction', '$func', $func );
+
+    if ($topic->is_empty()) {
+        return $topic;
+    }
 
     my $result = $topic->empty();
 
@@ -1235,7 +1293,9 @@ sub is_identical {
 
 sub _is_identical {
     my ($topic, $other) = @_;
-    return ($topic->_is_identical_hkeys(
+    return ($topic->_degree() == $other->_degree()
+        and $topic->_cardinality() == $other->_cardinality()
+        and $topic->_is_identical_hkeys(
             $topic->_heading(), $other->_heading() )
         and $topic->_is_identical_hkeys(
             $topic->_body(), $other->_body() ));
@@ -1512,6 +1572,26 @@ sub semidifference {
         return $source;
     }
     return $source->_regular_difference( $source->_semijoin( $filter ) );
+}
+
+sub semijoin_and_diff {
+    my ($source, $filter) = @_;
+    confess q{semijoin_and_diff(): Bad $filter arg;}
+            . q{ it isn't a Set::Relation object.}
+        if !blessed $filter or !$filter->isa( __PACKAGE__ );
+    return $source->_semijoin_and_diff( $filter );
+}
+
+sub _semijoin_and_diff {
+    my ($source, $filter) = @_;
+    if ($source->is_empty()) {
+        return [$source, $source];
+    }
+    if ($filter->is_empty()) {
+        return [$source->empty(), $source];
+    }
+    my $semijoin = $source->_semijoin( $filter );
+    return [$semijoin, $source->_regular_difference( $semijoin )];
 }
 
 sub semijoin {
@@ -1941,29 +2021,197 @@ sub limit {
 ###########################################################################
 
 sub substitution {
-    confess q{this routine isn't implemented yet};
+    my ($topic, $attrs, $func) = @_;
+    (my $subst_h, $attrs) = $topic->_attrs_hr_from_assert_valid_subst_args(
+        'substitution', '$attrs', '$func', $attrs, $func );
+    return $topic->_substitution(
+        'substitution', '$attrs', '$func', $attrs, $func, $subst_h );
 }
 
-sub static_substitution {
-    confess q{this routine isn't implemented yet};
+sub _attrs_hr_from_assert_valid_subst_args {
+    my ($topic, $rtn_nm, $arg_nm_attrs, $arg_nm_func, $attrs, $func) = @_;
+
+    (my $subst_h, $attrs) = $topic->_attrs_hr_from_assert_valid_attrs_arg(
+        $rtn_nm, $arg_nm_attrs, $attrs );
+    my (undef, undef, $subst_only)
+        = $topic->_ptn_conj_and_disj( $topic->_heading(), $subst_h );
+    confess qq{$rtn_nm(): Bad $arg_nm_attrs arg; that attr list}
+            . q{ isn't a subset of the invocant's heading.}
+        if @{$subst_only} > 0;
+
+    $topic->_assert_valid_func_arg( $rtn_nm, $arg_nm_func, $func );
+
+    return ($subst_h, $attrs);
+}
+
+sub _substitution {
+    my ($topic, $rtn_nm, $arg_nm_attrs, $arg_nm_func, $attrs, $func,
+        $subst_h) = @_;
+
+    if ($topic->is_empty()) {
+        return $topic;
+    }
+    if (@{$attrs} == 0) {
+        # Substitution in zero attrs of input yields the input.
+        return $topic;
+    }
+
+    my $result = $topic->empty();
+
+    my $result_b = $result->_body();
+
+    for my $topic_t (values %{$topic->_body()}) {
+        my $subst_t;
+        {
+            local $_ = $topic->_export_nfmt_tuple( $topic_t );
+            $subst_t = $func->();
+        }
+        $topic->_assert_valid_tuple_result_of_func_arg(
+            $rtn_nm, $arg_nm_func, $arg_nm_attrs, $subst_t, $subst_h );
+        $subst_t = $topic->_import_nfmt_tuple( $subst_t );
+        my $result_t = {%{$topic_t}, %{$subst_t}};
+        my $result_t_ident_str = $topic->_ident_str( $result_t );
+        if (!exists $result_b->{$result_t_ident_str}) {
+            $result_b->{$result_t_ident_str} = $result_t;
+        }
+    }
+    $result->_cardinality( scalar keys %{$result_b} );
+
+    return $result;
 }
 
 ###########################################################################
 
-sub substitution_in_restriction {
-    confess q{this routine isn't implemented yet};
+sub static_substitution {
+    my ($topic, $attrs) = @_;
+    $topic->_assert_valid_static_subst_args(
+        'static_substitution', '$attrs', $attrs );
+    return $topic->_static_substitution( $attrs );
 }
 
-sub static_substitution_in_restriction {
-    confess q{this routine isn't implemented yet};
+sub _assert_valid_static_subst_args {
+    my ($topic, $rtn_nm, $arg_nm_attrs, $attrs) = @_;
+
+    confess qq{$rtn_nm(): Bad $arg_nm_attrs arg; it isn't a hash-ref.}
+        if ref $attrs ne 'HASH';
+
+    my (undef, undef, $subst_only)
+        = $topic->_ptn_conj_and_disj( $topic->_heading(), $attrs );
+    confess qq{$rtn_nm(): Bad $arg_nm_attrs arg; that attr list}
+            . q{ isn't a subset of the invocant's heading.}
+        if @{$subst_only} > 0;
+
+    confess qq{$rtn_nm(): Bad $arg_nm_attrs arg;}
+            . q{ it is a hash-ref, and there exist circular refs}
+            . q{ between itself or its value-typed components.}
+        if $topic->_tuple_arg_has_circular_refs( $attrs );
+
+    return;
 }
 
-sub substitution_in_semijoin {
-    confess q{this routine isn't implemented yet};
+sub _static_substitution {
+    my ($topic, $attrs) = @_;
+
+    if ($topic->is_empty()) {
+        return $topic;
+    }
+    if ((scalar keys %{$attrs}) == 0) {
+        # Substitution in zero attrs of input yields the input.
+        return $topic;
+    }
+
+    $attrs = $topic->_import_nfmt_tuple( $attrs );
+
+    my $result = $topic->empty();
+
+    my $result_b = $result->_body();
+
+    for my $topic_t (values %{$topic->_body()}) {
+        my $result_t = {%{$topic_t}, %{$attrs}};
+        my $result_t_ident_str = $topic->_ident_str( $result_t );
+        if (!exists $result_b->{$result_t_ident_str}) {
+            $result_b->{$result_t_ident_str} = $result_t;
+        }
+    }
+    $result->_cardinality( scalar keys %{$result_b} );
+
+    return $result;
 }
 
-sub static_substitution_in_semijoin {
-    confess q{this routine isn't implemented yet};
+###########################################################################
+
+sub subst_in_restr {
+    my ($topic, $restr_func, $subst_attrs, $subst_func) = @_;
+
+    $topic->_assert_valid_func_arg(
+        'subst_in_restr', '$restr_func', $restr_func );
+
+    (my $subst_h, $subst_attrs) = $topic
+        ->_attrs_hr_from_assert_valid_subst_args( 'subst_in_restr',
+            '$subst_attrs', '$subst_func', $subst_attrs, $subst_func );
+
+    my ($topic_to_subst, $topic_no_subst)
+        = @{$topic->_restriction_and_cmpl( $restr_func )};
+
+    return $topic_to_subst
+        ->_substitution( 'subst_in_restr', '$subst_attrs',
+            '$subst_func', $subst_attrs, $subst_func, $subst_h )
+        ->_union( $topic_no_subst );
+}
+
+sub static_subst_in_restr {
+    my ($topic, $restr_func, $subst) = @_;
+
+    $topic->_assert_valid_func_arg(
+        'static_subst_in_restr', '$restr_func', $restr_func );
+
+    $topic->_assert_valid_static_subst_args(
+        'static_subst_in_restr', '$subst', $subst );
+
+    my ($topic_to_subst, $topic_no_subst)
+        = @{$topic->_restriction_and_cmpl( $restr_func )};
+
+    return $topic_to_subst
+        ->_static_substitution( $subst )
+        ->_union( $topic_no_subst );
+}
+
+sub subst_in_semijoin {
+    my ($topic, $restr, $subst_attrs, $subst_func) = @_;
+
+    confess q{subst_in_semijoin(): Bad $restr arg;}
+            . q{ it isn't a Set::Relation object.}
+        if !blessed $restr or !$restr->isa( __PACKAGE__ );
+
+    (my $subst_h, $subst_attrs) = $topic
+        ->_attrs_hr_from_assert_valid_subst_args( 'subst_in_semijoin',
+            '$subst_attrs', '$subst_func', $subst_attrs, $subst_func );
+
+    my ($topic_to_subst, $topic_no_subst)
+        = @{$topic->_semijoin_and_diff( $restr )};
+
+    return $topic_to_subst
+        ->_substitution( 'subst_in_semijoin', '$subst_attrs',
+            '$subst_func', $subst_attrs, $subst_func, $subst_h )
+        ->_union( $topic_no_subst );
+}
+
+sub static_subst_in_semijoin {
+    my ($topic, $restr, $subst) = @_;
+
+    confess q{static_subst_in_semijoin(): Bad $restr arg;}
+            . q{ it isn't a Set::Relation object.}
+        if !blessed $restr or !$restr->isa( __PACKAGE__ );
+
+    $topic->_assert_valid_static_subst_args(
+        'static_subst_in_semijoin', '$subst', $subst );
+
+    my ($topic_to_subst, $topic_no_subst)
+        = @{$topic->_semijoin_and_diff( $restr )};
+
+    return $topic_to_subst
+        ->_static_substitution( $subst )
+        ->_union( $topic_no_subst );
 }
 
 ###########################################################################
@@ -1976,11 +2224,11 @@ sub outer_join_with_undefs {
     confess q{this routine isn't implemented yet};
 }
 
-sub outer_join_with_static_extension {
+sub outer_join_with_static_exten {
     confess q{this routine isn't implemented yet};
 }
 
-sub outer_join_with_extension {
+sub outer_join_with_exten {
     confess q{this routine isn't implemented yet};
 }
 
@@ -2007,7 +2255,7 @@ Relation data type for Perl
 
 =head1 VERSION
 
-This document describes Set::Relation version 0.4.0 for Perl 5.
+This document describes Set::Relation version 0.5.0 for Perl 5.
 
 =head1 SYNOPSIS
 
@@ -2469,10 +2717,12 @@ of a Set::Relation object.
 
 =head2 new
 
-C<submethod new of Set::Relation (Array|Set::Relation|Str :$members?,
+C<multi submethod new of Set::Relation (Array|Set::Relation|Str :$members,
 Bool :$has_frozen_identity?)>
 
-C<submethod new of Set::Relation (Array|Set::Relation|Str $members?)>
+C<multi submethod new of Set::Relation (Array|Set::Relation|Str $members)>
+
+C<multi submethod new of Set::Relation ()>
 
 This constructor submethod creates and returns a new C<Set::Relation>
 object, representing a single relation value, that is initialized primarily
@@ -2940,6 +3190,16 @@ a simpler-syntax alternative for C<restriction> in its typical usage where
 restrictions are composed simply of anded or ored tests for attribute value
 equality.
 
+=head2 restriction_and_cmpl
+
+C<method restriction_and_cmpl of Array ($topic: Code $func)>
+
+This functional method performs a 2-way partitioning of all the tuples of
+C<$topic> and results in a 2-element Perl Array whose 2 element values are
+each Set::Relation objects; the first and second elements are what
+C<restriction> and C<cmpl_restriction>, respectively, would result in when
+having the same invocant and argument.
+
 =head2 cmpl_restriction
 
 C<method cmpl_restriction of Set::Relation ($topic: Code $func)>
@@ -3166,6 +3426,16 @@ the complementary subset of tuples of C<$source> when given the same
 arguments.  Note that this operation is also legitimately known as
 I<antijoin> or I<anti-semijoin>.
 
+=head2 semijoin_and_diff
+
+C<method semijoin_and_diff of Array ($source: Set::Relation $filter)>
+
+This functional method performs a 2-way partitioning of all the tuples of
+C<$source> and results in a 2-element Perl Array whose 2 element values are
+each Set::Relation objects; the first and second elements are what
+C<semijoin> and C<semidifference>, respectively, would result in when
+having the same invocant and argument.
+
 =head2 semijoin
 
 C<method semijoin of Set::Relation ($source: Set::Relation $filter)>
@@ -3309,7 +3579,7 @@ BY" but that the result tuples of C<limit> do not remain ordered.
 These Set::Relation object methods are pure functional.  They are specific
 to supporting substitutions.
 
-=head2 TODO - substitution
+=head2 substitution
 
 C<method substitution of Set::Relation ($topic: Array|Str $attrs, Code
 $func)>
@@ -3337,7 +3607,7 @@ that C<$func> will update (possibly to itself).  This method will fail if
 C<$topic> has at least 1 tuple and the result of C<$func> does not have
 matching attribute names to those named by C<$attrs>.
 
-=head2 TODO - static_substitution
+=head2 static_substitution
 
 C<method static_substitution of Set::Relation ($topic: Hash $attrs)>
 
@@ -3346,10 +3616,10 @@ in the typical scenario where every tuple of a relation, given in the
 C<$topic> invocant, is updated with identical values for the same
 attributes; the new attribute values are given in the C<$attrs> argument.
 
-=head2 TODO - substitution_in_restriction
+=head2 subst_in_restr
 
-C<method substitution_in_restriction of Set::Relation ($topic: Code
-$restr_func, Array|Str $subst_attrs, Code $subst_func)>
+C<method subst_in_restr of Set::Relation ($topic: Code $restr_func,
+Array|Str $subst_attrs, Code $subst_func)>
 
 This functional method is like C<substitution> except that it only
 transforms a subset of the tuples of C<$topic> rather than all of them.  It
@@ -3357,36 +3627,34 @@ is a short-hand for first separating the tuples of C<$topic> into 2 groups
 where those passed by a relational restriction (defined by C<$restr_func>)
 are then transformed (defined by C<$subst_attrs> and C<$subst_func>), then
 the result of the substitution is unioned with the un-transformed group.
-See also the C<substitution_in_semijoin> method, which is a simpler-syntax
-alternative for C<substitution_in_restriction> in its typical usage where
-restrictions are composed simply of anded or ored tests for attribute value
-equality.
+See also the C<subst_in_semijoin> method, which is a simpler-syntax
+alternative for C<subst_in_restr> in its typical usage where restrictions
+are composed simply of anded or ored tests for attribute value equality.
 
-=head2 TODO - static_substitution_in_restriction
+=head2 static_subst_in_restr
 
-C<method static_substitution_in_restriction of Set::Relation ($topic: Code
-$restr_func, Hash $subst)>
+C<method static_subst_in_restr of Set::Relation ($topic: Code $restr_func,
+Hash $subst)>
 
-This functional method is to C<substitution_in_restriction> what
-C<static_substitution> is to C<substitution>.  See also the
-C<static_substitution_in_semijoin> method.
+This functional method is to C<subst_in_restr> what C<static_substitution>
+is to C<substitution>.  See also the C<static_subst_in_semijoin> method.
 
-=head2 TODO - substitution_in_semijoin
+=head2 subst_in_semijoin
 
-C<method substitution_in_semijoin of Set::Relation ($topic: Set::Relation
-$restr, Array|Str $subst_attrs, Code $subst_func)>
+C<method subst_in_semijoin of Set::Relation ($topic: Set::Relation $restr,
+Array|Str $subst_attrs, Code $subst_func)>
 
-This functional method is like C<substitution_in_restriction> except that
-the subset of the tuples of C<$topic> to be transformed is determined by
-those matched by a semijoin with C<$restr> rather than those that pass a
-generic relational restriction.
+This functional method is like C<subst_in_restr> except that the subset of
+the tuples of C<$topic> to be transformed is determined by those matched by
+a semijoin with C<$restr> rather than those that pass a generic relational
+restriction.
 
-=head2 TODO - static_substitution_in_semijoin
+=head2 static_subst_in_semijoin
 
-C<method static_substitution_in_semijoin of Set::Relation ($topic:
-Set::Relation $restr, Hash $subst)>
+C<method static_subst_in_semijoin of Set::Relation ($topic: Set::Relation
+$restr, Hash $subst)>
 
-This functional method is to C<substitution_in_semijoin> what
+This functional method is to C<subst_in_semijoin> what
 C<static_substitution> is to C<substitution>.
 
 =head1 Relational Outer-Join Functional Methods
@@ -3416,9 +3684,9 @@ tuples coming from a C<$primary> tuple that didn't match a C<$secondary>
 tuple, the result attributes coming from just C<$secondary> are filled with
 the Perl undef.
 
-=head2 TODO - outer_join_with_static_extension
+=head2 TODO - outer_join_with_static_exten
 
-C<method outer_join_with_static_extension of Set::Relation ($primary:
+C<method outer_join_with_static_exten of Set::Relation ($primary:
 Set::Relation $secondary, Hash $filler)>
 
 This functional method is the same as C<outer_join_with_undefs> but that
@@ -3429,13 +3697,13 @@ heading matches the projection of C<$secondary>'s attributes that aren't in
 common with C<$primary>, and whose body is the literal values to use for
 those missing attribute values.
 
-=head2 TODO - outer_join_with_extension
+=head2 TODO - outer_join_with_exten
 
-C<method outer_join_with_extension of Set::Relation ($primary:
-Set::Relation $secondary, Code $exten_func)>
+C<method outer_join_with_exten of Set::Relation ($primary: Set::Relation
+$secondary, Code $exten_func)>
 
-This functional method is the same as C<outer_join_with_static_extension>
-but that the result tuples from non-matches are the result of performing a
+This functional method is the same as C<outer_join_with_static_exten> but
+that the result tuples from non-matches are the result of performing a
 relational extension on the un-matched C<$primary> tuples such that each
 said result tuple is determined by applying the Perl subroutine given in
 C<$exten_func> to each said C<$primary> tuple.
@@ -3459,6 +3727,7 @@ installation by users of earlier Perl versions:
 L<version-ver(0.74..*)|version>.
 
 It also requires these Perl 5 packages that are on CPAN:
+L<namespace::clean-ver(0.09..*)|namespace::clean>,
 L<Moose-ver(0.68..*)|Moose>.
 
 =head1 INCOMPATIBILITIES
