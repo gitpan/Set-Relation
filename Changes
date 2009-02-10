@@ -1,6 +1,55 @@
                                Set::Relation
 ---------------------------------------------------------------------------
 
+2009-02-09   Darren Duncan <perl@DarrenDuncan.net>
+
+    * Set::Relation version 0.6.0 for Perl 5 is released on CPAN as
+    Set-Relation-0.6.0.tar.gz.
+
+    * As of this release, Set::Relation for Perl 5 directly uses the
+    List::MoreUtils module to handle some of its detail work; this
+    distribution has now gained a direct external dependency on the Perl 5
+    module 'List::MoreUtils', which is not bundled with any version of Perl
+    and will need to be installed from CPAN.  That said, List::MoreUtils
+    was already a dependency of Set::Relation's existing Moose dependency,
+    so the whole dependency tree has not enlarged.
+
+    * (Relation.pm)  Added these 14 object methods: "wrap", "cmpl_wrap",
+    "unwrap", "group", "cmpl_group", "ungroup", "summary",
+    "join_with_group", "rank", "limit", "outer_join_with_group",
+    "outer_join_with_undefs", "outer_join_with_static_exten",
+    "outer_join_with_exten".  As of now, all of the pre-documented and
+    TODO-marked object methods have been implemented.
+
+    * (Relation.pm)  Replaced all instances of "__PACKAGE__->new(...)" with
+    "$self->new(...)" etc, to help avoid potential future problems when
+    someone tries to subclass the module.
+
+    * (Relation.pm)  Various bug fixes and other small changes.
+
+    * As of this release, Set::Relation is officially in alpha development
+    status (was pre-alpha).  All of the initially planned functionality is
+    now implemented, so it is feature complete, which is why it was moved
+    out of pre-alpha status.  However most of the functionality has not
+    been tested and so is not proven to actually work without error.  Once
+    the module has a thorough test suite which passes, Set::Relation can be
+    moved to beta or released status.
+
+2009-02-09   Darren Duncan <perl@DarrenDuncan.net>
+
+    Record update in the PAUSE modules database:
+
+           modid: [Set::Relation]
+           statd: [a] was [c]
+           stats: [m]
+           statl: [p]
+           stati: [O]
+           statp: [l]
+     description: [Relation data type for Perl]
+          userid: [DUNCAND]
+       chapterid: [6]
+        mlstatus: [list]
+
 2009-02-06   Darren Duncan <perl@DarrenDuncan.net>
 
     * Set::Relation version 0.5.0 for Perl 5 is released on CPAN as

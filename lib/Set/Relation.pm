@@ -7,10 +7,11 @@ use warnings FATAL => 'all';
 ###########################################################################
 
 { package Set::Relation; # class
-    use version 0.74; our $VERSION = qv('0.5.0');
+    use version 0.74; our $VERSION = qv('0.6.0');
 
     use Scalar::Util 'refaddr';
     use List::Util 'first';
+    use List::MoreUtils 'any', 'notall';
 
     use Moose 0.68;
 
@@ -233,7 +234,7 @@ sub BUILD {
 
 sub clone {
     my ($self) = @_;
-    return __PACKAGE__->new( $self );
+    return $self->new( $self );
 }
 
 ###########################################################################
@@ -314,10 +315,14 @@ sub _members {
     return $members;
 }
 
+###########################################################################
+
 sub heading {
     my ($self) = @_;
     return [sort keys %{$self->_heading()}];
 }
+
+###########################################################################
 
 sub body {
     my ($self, $want_ord_attrs) = @_;
@@ -337,6 +342,8 @@ sub body {
 
     return $body;
 }
+
+###########################################################################
 
 sub _normalize_true_want_ord_attrs_arg {
     my ($self, $rtn_nm, $arg_nm, $want_ord_attrs) = @_;
@@ -390,6 +397,8 @@ sub slice {
     return $body;
 }
 
+###########################################################################
+
 sub attr {
     my ($self, $name) = @_;
 
@@ -417,6 +426,8 @@ sub evacuate {
     $topic->_cardinality( 0 );
     return $topic;
 }
+
+###########################################################################
 
 sub insert {
     my ($r, $t) = @_;
@@ -460,6 +471,8 @@ sub _insert {
 
     return $r;
 }
+
+###########################################################################
 
 sub delete {
     my ($r, $t) = @_;
@@ -507,6 +520,8 @@ sub _delete {
     return $r;
 }
 
+###########################################################################
+
 sub _normalize_same_heading_tuples_arg {
     my ($r, $rtn_nm, $arg_nm, $t) = @_;
 
@@ -533,6 +548,8 @@ sub _normalize_same_heading_tuples_arg {
     return $t;
 }
 
+###########################################################################
+
 sub _tuple_arg_has_circular_refs {
     # This routine just checks that no Hash which would be treated as
     # being of a value type contains itself as a component, where the
@@ -553,6 +570,8 @@ sub _tuple_arg_has_circular_refs {
     }
     return 0;
 }
+
+###########################################################################
 
 sub _self_is_component_of_tuple_arg {
     my ($self, $tuple) = @_;
@@ -729,7 +748,7 @@ sub empty {
     if ($topic->is_empty()) {
         return $topic;
     }
-    return __PACKAGE__->new( $topic->heading() );
+    return $topic->new( $topic->heading() );
 }
 
 sub insertion {
@@ -804,7 +823,7 @@ sub _rename {
             exists $map->{$_} ? $map->{$_} : $_
         )) } keys %{$topic->_heading()}};
 
-    my $result = __PACKAGE__->new();
+    my $result = $topic->new();
 
     $result->_heading( {CORE::map { ($_ => undef) } values %{$map}} );
     $result->_degree( $topic->degree() );
@@ -845,10 +864,10 @@ sub _projection {
     if (@{$attrs} == 0) {
         # Projection of zero attrs yields identity relation zero or one.
         if ($topic->is_empty()) {
-            return __PACKAGE__->new();
+            return $topic->new();
         }
         else {
-            return __PACKAGE__->new( [ {} ] );
+            return $topic->new( [ {} ] );
         }
     }
     if (@{$attrs} == $topic->degree()) {
@@ -856,7 +875,7 @@ sub _projection {
         return $topic;
     }
 
-    my $result = __PACKAGE__->new();
+    my $result = $topic->new();
 
     $result->_heading( {CORE::map { ($_ => undef) } @{$attrs}} );
     $result->_degree( scalar @{$attrs} );
@@ -895,29 +914,392 @@ sub cmpl_projection {
 ###########################################################################
 
 sub wrap {
-    confess q{this routine isn't implemented yet};
+    my ($topic, $inner, $outer) = @_;
+
+    (my $inner_h, $inner) = $topic->_attrs_hr_from_assert_valid_attrs_arg(
+        'wrap', '$inner', $inner );
+    $topic->_assert_valid_atnm_arg( 'wrap', '$outer', $outer );
+
+    my (undef, $topic_attrs_no_wr, $inner_attrs_not_in_topic)
+        = $topic->_ptn_conj_and_disj( $topic->_heading(), $inner_h );
+    confess q{wrap(): Bad $inner arg; that list of attrs to be wrapped}
+            . q{ isn't a subset of the invocant's heading.}
+        if @{$inner_attrs_not_in_topic} > 0;
+    confess q{wrap(): Bad $outer arg; that name for a new attr to add}
+            . q{ to the invocant, consisting of wrapped invocant attrs,}
+            . q{ duplicates an attr of the invocant not being wrapped.}
+        if any { $_ eq $outer } @{$topic_attrs_no_wr};
+
+    return $topic->_wrap( $inner, $outer, $topic_attrs_no_wr );
+}
+
+sub _wrap {
+    my ($topic, $inner, $outer, $topic_attrs_no_wr) = @_;
+
+    my $result = $topic->new();
+
+    $result->_heading(
+        {CORE::map { ($_ => undef) } @{$topic_attrs_no_wr}, $outer} );
+    $result->_degree( @{$topic_attrs_no_wr} + 1 );
+
+    my $topic_b = $topic->_body();
+    my $result_b = $result->_body();
+
+    if ($topic->is_empty()) {
+        # An empty $topic means an empty result.
+        # So $result_b is already correct.
+    }
+    elsif (@{$inner} == 0) {
+        # Wrap zero $topic attrs as new attr.
+        # So this is a simple static extension of $topic w static $outer.
+        my $inner_t = {};
+        my $outer_atvl = [$inner_t, $topic->_ident_str( $inner_t )];
+        for my $topic_t (values %{$topic_b}) {
+            my $result_t = {$outer => $outer_atvl, {%{$topic_t}}};
+            my $result_t_ident_str = $topic->_ident_str( $result_t );
+            $result_b->{$result_t_ident_str} = $result_t;
+        }
+    }
+    elsif (@{$topic_attrs_no_wr} == 0) {
+        # Wrap all $topic attrs as new attr.
+        for my $topic_t_ident_str (keys %{$topic_b}) {
+            my $result_t = {$outer => [$topic_b->{$topic_t_ident_str},
+                $topic_t_ident_str]};
+            my $result_t_ident_str = $topic->_ident_str( $result_t );
+            $result_b->{$result_t_ident_str} = $result_t;
+        }
+    }
+    else {
+        # Wrap at least one but not all $topic attrs as new attr.
+        for my $topic_t (values %{$topic_b}) {
+            my $inner_t = {CORE::map { ($_ => $topic_t->{$_}) } @{$inner}};
+            my $outer_atvl = [$inner_t, $topic->_ident_str( $inner_t )];
+            my $result_t = {
+                $outer => $outer_atvl,
+                CORE::map { ($_ => $topic_t->{$_}) } @{$topic_attrs_no_wr}
+            };
+            my $result_t_ident_str = $topic->_ident_str( $result_t );
+            $result_b->{$result_t_ident_str} = $result_t;
+        }
+    }
+    $result->_cardinality( $topic->cardinality() );
+
+    return $result;
 }
 
 sub cmpl_wrap {
-    confess q{this routine isn't implemented yet};
+    my ($topic, $cmpl_inner, $outer) = @_;
+
+    (my $cmpl_inner_h, $cmpl_inner)
+        = $topic->_attrs_hr_from_assert_valid_attrs_arg(
+            'cmpl_wrap', '$cmpl_inner', $cmpl_inner );
+    $topic->_assert_valid_atnm_arg( 'cmpl_wrap', '$outer', $outer );
+
+    my $topic_h = $topic->_heading();
+
+    confess q{cmpl_wrap(): Bad $cmpl_inner arg; that attr list}
+            . q{ isn't a subset of the invocant's heading.}
+        if notall { exists $topic_h->{$_} } @{$cmpl_inner};
+
+    my $inner = [grep { !$cmpl_inner_h->{$_} } keys %{$topic_h}];
+    my $inner_h = {CORE::map { $_ => undef } @{$inner}};
+
+    my (undef, $topic_attrs_no_wr, undef)
+        = $topic->_ptn_conj_and_disj( $topic_h, $inner_h );
+    confess q{cmpl_wrap(): Bad $outer arg; that name for a new attr to add}
+            . q{ to the invocant, consisting of wrapped invocant attrs,}
+            . q{ duplicates an attr of the invocant not being wrapped.}
+        if any { $_ eq $outer } @{$topic_attrs_no_wr};
+
+    return $topic->_wrap( $inner, $outer, $topic_attrs_no_wr );
 }
 
+###########################################################################
+
 sub unwrap {
-    confess q{this routine isn't implemented yet};
+    my ($topic, $outer, $inner) = @_;
+
+    $topic->_assert_valid_atnm_arg( 'unwrap', '$outer', $outer );
+    (my $inner_h, $inner) = $topic->_attrs_hr_from_assert_valid_attrs_arg(
+        'unwrap', '$inner', $inner );
+
+    my $topic_h = $topic->_heading();
+
+    confess q{unwrap(): Bad $outer arg; that attr name}
+            . q{ doesn't match an attr of the invocant's heading.}
+        if !exists $topic_h->{$outer};
+
+    my $topic_h_except_outer = {%{$topic_h}};
+    CORE::delete $topic_h_except_outer->{$outer};
+
+    my ($inner_attrs_dupl_topic, $topic_attrs_no_uwr, undef)
+        = $topic->_ptn_conj_and_disj( $topic_h_except_outer, $inner_h );
+    confess q{unwrap(): Bad $inner arg; at least one name in that attr}
+            . q{ list, which the invocant would be extended with when}
+            . q{ unwrapping $topic{$outer}, duplicates an attr of the}
+            . q{ invocant not being unwrapped.}
+        if @{$inner_attrs_dupl_topic} > 0;
+
+    my $topic_b = $topic->_body();
+
+    for my $topic_t (values %{$topic_b}) {
+        my $inner_t = $topic_t->{$outer}->[0];
+        confess q{unwrap(): Can't unwrap $topic{$outer} because there is}
+                . q{ not a same-heading tuple value for the $outer attr of}
+                . q{ every tuple of $topic whose heading matches $inner.}
+            if ref $inner_t ne 'HASH'
+                or !$topic->_is_identical_hkeys( $inner_h, $inner_t );
+    }
+
+    my $result = $topic->new();
+
+    $result->_heading( {%{$topic_h_except_outer}, %{$inner_h}} );
+    $result->_degree( @{$topic_attrs_no_uwr} + @{$inner} );
+
+    my $result_b = $result->_body();
+
+    if ($topic->is_empty()) {
+        # An empty $topic means an empty result.
+        # So $result_b is already correct.
+    }
+    elsif (@{$topic_attrs_no_uwr} == 0) {
+        # Only $topic attr is $outer, all result attrs from $outer unwrap.
+        for my $topic_t (values %{$topic_b}) {
+            my $outer_atvl = $topic_t->{$outer};
+            $result_b->{$outer_atvl->[1]} = $outer_atvl->[0];
+        }
+    }
+    elsif (@{$inner} == 0) {
+        # Unwrap of $outer adds zero attrs to $topic.
+        # So this is a simple projection of $topic excising $outer.
+        for my $topic_t (values %{$topic_b}) {
+            my $result_t = {
+                CORE::map { ($_ => $topic_t->{$_}) } @{$topic_attrs_no_uwr}
+            };
+            my $result_t_ident_str = $topic->_ident_str( $result_t );
+            $result_b->{$result_t_ident_str} = $result_t;
+        }
+    }
+    else {
+        # Result has at least 1 attr from $outer, at least 1 not from it.
+        for my $topic_t (values %{$topic_b}) {
+            my $result_t = {
+                %{$topic_t->{$outer}->[0]},
+                CORE::map { ($_ => $topic_t->{$_}) } @{$topic_attrs_no_uwr}
+            };
+            my $result_t_ident_str = $topic->_ident_str( $result_t );
+            $result_b->{$result_t_ident_str} = $result_t;
+        }
+    }
+    $result->_cardinality( $topic->cardinality() );
+
+    return $result;
 }
 
 ###########################################################################
 
 sub group {
-    confess q{this routine isn't implemented yet};
+    my ($topic, $inner, $outer) = @_;
+
+    (my $inner_h, $inner) = $topic->_attrs_hr_from_assert_valid_attrs_arg(
+        'group', '$inner', $inner );
+    $topic->_assert_valid_atnm_arg( 'group', '$outer', $outer );
+
+    my (undef, $topic_attrs_no_gr, $inner_attrs_not_in_topic)
+        = $topic->_ptn_conj_and_disj( $topic->_heading(), $inner_h );
+    confess q{group(): Bad $inner arg; that list of attrs to be grouped}
+            . q{ isn't a subset of the invocant's heading.}
+        if @{$inner_attrs_not_in_topic} > 0;
+    confess q{group(): Bad $outer arg; that name for a new attr to add}
+            . q{ to the invocant, consisting of grouped invocant attrs,}
+            . q{ duplicates an attr of the invocant not being grouped.}
+        if any { $_ eq $outer } @{$topic_attrs_no_gr};
+
+    return $topic->_group( $inner, $outer, $topic_attrs_no_gr, $inner_h );
+}
+
+sub _group {
+    my ($topic, $inner, $outer, $topic_attrs_no_gr, $inner_h) = @_;
+
+    my $result = $topic->new();
+
+    $result->_heading(
+        {CORE::map { ($_ => undef) } @{$topic_attrs_no_gr}, $outer} );
+    $result->_degree( @{$topic_attrs_no_gr} + 1 );
+
+    if ($topic->is_empty()) {
+        # An empty $topic means an empty result.
+        # So result body is already correct.
+    }
+    elsif (@{$inner} == 0) {
+        # Group zero $topic attrs as new attr.
+        # So this is a simple static extension of $topic w static $outer.
+        my $result_b = $result->_body();
+        my $inner_r = $topic->new( [ {} ] );
+        my $outer_atvl = [$inner_r, $inner_r->which()];
+        for my $topic_t (values %{$topic->_body()}) {
+            my $result_t = {$outer => $outer_atvl, {%{$topic_t}}};
+            my $result_t_ident_str = $topic->_ident_str( $result_t );
+            $result_b->{$result_t_ident_str} = $result_t;
+        }
+        $result->_cardinality( $topic->cardinality() );
+    }
+    elsif (@{$topic_attrs_no_gr} == 0) {
+        # Group all $topic attrs as new attr.
+        # So $topic is just used as sole attr of sole tuple of result.
+        my $result_t = {$outer => [$topic, $topic->which()]};
+        my $result_t_ident_str = $topic->_ident_str( $result_t );
+        $result->_body( {$result_t_ident_str => $result_t} );
+        $result->_cardinality( 1 );
+    }
+    else {
+        # Group at least one but not all $topic attrs as new attr.
+        my $result_b = $result->_body();
+        my $topic_index = $topic->_want_index( $topic_attrs_no_gr );
+        for my $matched_topic_b (values %{$topic_index}) {
+
+            my $inner_r = $topic->new();
+            $inner_r->_heading( $inner_h );
+            $inner_r->_degree( @{$inner} );
+            my $inner_b = $inner_r->_body();
+            for my $topic_t (values %{$matched_topic_b}) {
+                my $inner_t
+                    = {CORE::map { ($_ => $topic_t->{$_}) } @{$inner}};
+                $inner_b->{$topic->_ident_str( $inner_t )} = $inner_t;
+            }
+            $inner_r->_cardinality( scalar keys %{$matched_topic_b} );
+            my $outer_atvl = [$inner_r, $inner_r->which()];
+
+            my $any_mtpt = first { 1 } values %{$matched_topic_b};
+
+            my $result_t = {
+                $outer => $outer_atvl,
+                CORE::map { ($_ => $any_mtpt->{$_}) } @{$topic_attrs_no_gr}
+            };
+            my $result_t_ident_str = $topic->_ident_str( $result_t );
+            $result_b->{$result_t_ident_str} = $result_t;
+        }
+        $result->_cardinality( scalar keys %{$topic_index} );
+    }
+
+    return $result;
 }
 
 sub cmpl_group {
-    confess q{this routine isn't implemented yet};
+    my ($topic, $group_per, $outer) = @_;
+
+    (my $group_per_h, $group_per)
+        = $topic->_attrs_hr_from_assert_valid_attrs_arg(
+            'cmpl_group', '$group_per', $group_per );
+    $topic->_assert_valid_atnm_arg( 'cmpl_group', '$outer', $outer );
+
+    my $topic_h = $topic->_heading();
+
+    confess q{cmpl_group(): Bad $group_per arg; that attr list}
+            . q{ isn't a subset of the invocant's heading.}
+        if notall { exists $topic_h->{$_} } @{$group_per};
+
+    my $inner = [grep { !$group_per_h->{$_} } keys %{$topic_h}];
+    my $inner_h = {CORE::map { $_ => undef } @{$inner}};
+
+    my (undef, $topic_attrs_no_gr, undef)
+        = $topic->_ptn_conj_and_disj( $topic_h, $inner_h );
+    confess q{cmpl_group(): Bad $outer arg; that name for a new attr to}
+            . q{ add to th invocant, consisting of grouped invocant attrs,}
+            . q{ duplicates an attr of the invocant not being grouped.}
+        if any { $_ eq $outer } @{$topic_attrs_no_gr};
+
+    return $topic->_group( $inner, $outer, $topic_attrs_no_gr, $inner_h );
 }
 
+###########################################################################
+
 sub ungroup {
-    confess q{this routine isn't implemented yet};
+    my ($topic, $outer, $inner) = @_;
+
+    $topic->_assert_valid_atnm_arg( 'ungroup', '$outer', $outer );
+    (my $inner_h, $inner) = $topic->_attrs_hr_from_assert_valid_attrs_arg(
+        'ungroup', '$inner', $inner );
+
+    my $topic_h = $topic->_heading();
+
+    confess q{ungroup(): Bad $outer arg; that attr name}
+            . q{ doesn't match an attr of the invocant's heading.}
+        if !exists $topic_h->{$outer};
+
+    my $topic_h_except_outer = {%{$topic_h}};
+    CORE::delete $topic_h_except_outer->{$outer};
+
+    my ($inner_attrs_dupl_topic, $topic_attrs_no_ugr, undef)
+        = $topic->_ptn_conj_and_disj( $topic_h_except_outer, $inner_h );
+    confess q{ungroup(): Bad $inner arg; at least one name in that attr}
+            . q{ list, which the invocant would be extended with when}
+            . q{ ungrouping $topic{$outer}, duplicates an attr of the}
+            . q{ invocant not being ungrouped.}
+        if @{$inner_attrs_dupl_topic} > 0;
+
+    my $topic_b = $topic->_body();
+
+    for my $topic_t (values %{$topic_b}) {
+        my $inner_r = $topic_t->{$outer}->[0];
+        confess q{ungroup(): Can't ungroup $topic{$outer} because there is}
+                . q{ not a same-heading relation val for the $outer attr}
+                . q{ of every tuple of $topic whose head matches $inner.}
+            if !blessed $inner_r or !$inner_r->isa( __PACKAGE__ )
+                or !$topic->_is_identical_hkeys(
+                    $inner_h, $inner_r->_heading() );
+    }
+
+    if ($topic->degree() == 1) {
+        # Ungroup of a unary relation is the N-adic union of its sole
+        # attribute's value across all tuples.
+        return $topic->new( $inner )
+            ->_union( [map { $_->{$outer} } values %{$topic_b}] );
+    }
+
+    # If we get here, the input relation is not unary.
+
+    my $result = $topic->new();
+
+    $result->_heading( {%{$topic_h_except_outer}, %{$inner_h}} );
+    $result->_degree( @{$topic_attrs_no_ugr} + @{$inner} );
+
+    my $topic_tuples_w_nonemp_inn
+        = [grep { !$_->{$outer}->is_empty() } values %{$topic_b}];
+
+    if (@{$topic_tuples_w_nonemp_inn} == 0) {
+        # An empty post-basic-filtering $topic means an empty result.
+        # So result body is already correct.
+    }
+    elsif (@{$inner} == 0) {
+        # Ungroup of $outer adds zero attrs to $topic.
+        # So this is a simple proj of post-basic-filt $topic excis $outer.
+        my $result_b = $result->_body();
+        for my $topic_t (@{$topic_tuples_w_nonemp_inn}) {
+            my $result_t = {
+                CORE::map { ($_ => $topic_t->{$_}) } @{$topic_attrs_no_ugr}
+            };
+            my $result_t_ident_str = $topic->_ident_str( $result_t );
+            $result_b->{$result_t_ident_str} = $result_t;
+        }
+        $result->_cardinality( scalar @{$topic_tuples_w_nonemp_inn} );
+    }
+    else {
+        # Result has at least 1 attr from $outer, at least 1 not from it.
+        my $result_b = $result->_body();
+        for my $topic_t (@{$topic_tuples_w_nonemp_inn}) {
+            my $no_ugr_t = {CORE::map { ($_ => $topic_t->{$_}) }
+                @{$topic_attrs_no_ugr}};
+            my $inner_r = $topic_t->{$outer}->[0];
+            for my $inner_t (values %{$inner_r->_body()}) {
+                my $result_t = {%{$inner_t}, %{$no_ugr_t}};
+                $result_b->{$topic->_ident_str( $result_t )} = $result_t;
+            }
+        }
+        $result->_cardinality( scalar keys %{$result_b} );
+    }
+
+    return $result;
 }
 
 ###########################################################################
@@ -1090,22 +1472,26 @@ sub extension {
         'extension', '$attrs', $attrs );
     $topic->_assert_valid_func_arg( 'extension', '$func', $func );
 
+    my ($both, undef, undef)
+        = $topic->_ptn_conj_and_disj( $topic->_heading(), $exten_h );
+    confess q{extension(): Bad $attrs arg; that attr list}
+            . q{ isn't disjoint with the invocant's heading.}
+        if @{$both} > 0;
+
+    return $topic->_extension( $attrs, $func, $exten_h );
+}
+
+sub _extension {
+    my ($topic, $attrs, $func, $exten_h) = @_;
+
     if (@{$attrs} == 0) {
         # Extension of input by zero attrs yields the input.
         return $topic;
     }
 
-    my $topic_h = $topic->_heading();
+    my $result = $topic->new();
 
-    my ($both, undef, undef)
-        = $topic->_ptn_conj_and_disj( $topic_h, $exten_h );
-    confess q{extension(): Bad $attrs arg; that attr list}
-            . q{ isn't disjoint with the invocant's heading.}
-        if @{$both} > 0;
-
-    my $result = __PACKAGE__->new();
-
-    $result->_heading( {%{$topic_h}, %{$exten_h}} );
+    $result->_heading( {%{$topic->_heading()}, %{$exten_h}} );
     $result->_degree( $topic->degree() + scalar @{$attrs} );
 
     my $result_b = $result->_body();
@@ -1128,21 +1514,16 @@ sub extension {
     return $result;
 }
 
+###########################################################################
+
 sub static_extension {
     my ($topic, $attrs) = @_;
 
     confess q{static_extension(): Bad $attrs arg; it isn't a hash-ref.}
         if ref $attrs ne 'HASH';
 
-    if ((scalar keys %{$attrs}) == 0) {
-        # Extension of input by zero attrs yields the input.
-        return $topic;
-    }
-
-    my $topic_h = $topic->_heading();
-
     my ($both, undef, undef)
-        = $topic->_ptn_conj_and_disj( $topic_h, $attrs );
+        = $topic->_ptn_conj_and_disj( $topic->_heading(), $attrs );
     confess q{static_extension(): Bad $attrs arg; that attr list}
             . q{ isn't disjoint with the invocant's heading.}
         if @{$both} > 0;
@@ -1152,12 +1533,23 @@ sub static_extension {
             . q{ between itself or its value-typed components.}
         if $topic->_tuple_arg_has_circular_refs( $attrs );
 
+    return $topic->_static_extension( $attrs );
+}
+
+sub _static_extension {
+    my ($topic, $attrs) = @_;
+
+    if ((scalar keys %{$attrs}) == 0) {
+        # Extension of input by zero attrs yields the input.
+        return $topic;
+    }
+
     $attrs = $topic->_import_nfmt_tuple( $attrs );
 
-    my $result = __PACKAGE__->new();
+    my $result = $topic->new();
 
-    $result->_heading(
-        {%{$topic_h}, CORE::map { ($_ => undef) } keys %{$attrs}} );
+    $result->_heading( {%{$topic->_heading()},
+        CORE::map { ($_ => undef) } keys %{$attrs}} );
     $result->_degree( $topic->degree() + (scalar keys %{$attrs}) );
 
     my $result_b = $result->_body();
@@ -1185,14 +1577,14 @@ sub map {
     if (@{$result_attrs} == 0) {
         # Map to zero attrs yields identity relation zero or one.
         if ($topic->is_empty()) {
-            return __PACKAGE__->new();
+            return $topic->new();
         }
         else {
-            return __PACKAGE__->new( [ {} ] );
+            return $topic->new( [ {} ] );
         }
     }
 
-    my $result = __PACKAGE__->new();
+    my $result = $topic->new();
 
     $result->_heading( $result_h );
     $result->_degree( scalar @{$result_attrs} );
@@ -1221,7 +1613,89 @@ sub map {
 ###########################################################################
 
 sub summary {
-    confess q{this routine isn't implemented yet};
+    my ($topic, $group_per, $result_attrs, $summ_func) = @_;
+
+    (my $group_per_h, $group_per)
+        = $topic->_attrs_hr_from_assert_valid_attrs_arg(
+            'summary', '$group_per', $group_per );
+    (my $result_h, $result_attrs)
+        = $topic->_attrs_hr_from_assert_valid_attrs_arg(
+            'summary', '$result_attrs', $result_attrs );
+    $topic->_assert_valid_func_arg( 'summary', '$summ_func', $summ_func );
+
+    my $topic_h = $topic->_heading();
+
+    confess q{summary(): Bad $group_per arg; that attr list}
+            . q{ isn't a subset of the invocant's heading.}
+        if notall { exists $topic_h->{$_} } @{$group_per};
+
+    my $inner = [grep { !$group_per_h->{$_} } keys %{$topic_h}];
+    my $inner_h = {CORE::map { $_ => undef } @{$inner}};
+
+    my (undef, $topic_attrs_no_gr, undef)
+        = $topic->_ptn_conj_and_disj( $topic_h, $inner_h );
+
+    if (@{$result_attrs} == 0) {
+        # Map to zero attrs yields identity relation zero or one.
+        if ($topic->is_empty()) {
+            return $topic->new();
+        }
+        else {
+            return $topic->new( [ {} ] );
+        }
+    }
+
+    my $result = $topic->new();
+
+    $result->_heading( $result_h );
+    $result->_degree( scalar @{$result_attrs} );
+
+    if ($topic->is_empty()) {
+        # An empty $topic means an empty result.
+        return $result;
+    }
+
+    # Note: We skipped a number of shortcuts that _group() has for
+    # brevity, leaving just the general case; they might come back later.
+
+    my $result_b = $result->_body();
+    my $topic_index = $topic->_want_index( $topic_attrs_no_gr );
+    for my $matched_topic_b (values %{$topic_index}) {
+
+        my $inner_r = $topic->new();
+        $inner_r->_heading( $inner_h );
+        $inner_r->_degree( @{$inner} );
+        my $inner_b = $inner_r->_body();
+        for my $topic_t (values %{$matched_topic_b}) {
+            my $inner_t = {CORE::map { ($_ => $topic_t->{$_}) } @{$inner}};
+            $inner_b->{$topic->_ident_str( $inner_t )} = $inner_t;
+        }
+        $inner_r->_cardinality( scalar keys %{$matched_topic_b} );
+
+        my $any_mtpt = first { 1 } values %{$matched_topic_b};
+        my $group_per_t = {CORE::map { ($_ => $any_mtpt->{$_}) }
+            @{$topic_attrs_no_gr}};
+
+        my $result_t;
+        {
+            local $_ = {
+                'summarize' => $inner_r,
+                'per' => $topic->_export_nfmt_tuple( $group_per_t ),
+            };
+            $result_t = $summ_func->();
+        }
+        $topic->_assert_valid_tuple_result_of_func_arg( 'summary',
+            '$summ_func', '$result_attrs', $result_t, $result_h );
+        $result_t = $topic->_import_nfmt_tuple( $result_t );
+
+        my $result_t_ident_str = $topic->_ident_str( $result_t );
+        if (!exists $result_b->{$result_t_ident_str}) {
+            $result_b->{$result_t_ident_str} = $result_t;
+        }
+    }
+    $result->_cardinality( scalar keys %{$result_b} );
+
+    return $result;
 }
 
 ###########################################################################
@@ -1258,6 +1732,14 @@ sub _assert_valid_atnm_arg {
         if !defined $atnm or ref $atnm;
 }
 
+sub _assert_valid_nnint_arg {
+    my ($self, $rtn_nm, $arg_nm, $atnm) = @_;
+    confess qq{$rtn_nm(): Bad $arg_nm arg;}
+            . q{ it should be just be a non-negative integer,}
+            . q{ but it is undefined or is a ref or is some other scalar.}
+        if !defined $atnm or ref $atnm or not $atnm =~ /^[0-9]+$/;
+}
+
 sub _assert_valid_func_arg {
     my ($self, $rtn_nm, $arg_nm, $func) = @_;
     confess qq{$rtn_nm(): Bad $arg_nm arg;}
@@ -1279,6 +1761,17 @@ sub _assert_valid_tuple_result_of_func_arg {
             . q{ reference was a hash-ref, and there exist circular refs}
             . q{ between itself or its value-typed components.}
         if $self->_tuple_arg_has_circular_refs( $result_t );
+}
+
+sub _assert_same_heading_relation_arg {
+    my ($self, $rtn_nm, $arg_nm, $other) = @_;
+    confess qq{$rtn_nm(): Bad $arg_nm arg; it isn't a Set::Relation}
+            . q{ object, or it doesn't have exactly the}
+            . q{ same set of attr names as the invocant.}
+        if !blessed $other or !$other->isa( __PACKAGE__ )
+            or !$self->_is_identical_hkeys(
+                $self->_heading(), $other->_heading() );
+    return;
 }
 
 ###########################################################################
@@ -1309,17 +1802,6 @@ sub is_subset {
         'is_subset', '$look_for', $look_for );
     my $look_in_b = $look_in->_body();
     return !first { !exists $look_in_b->{$_} } keys %{$look_for->_body()};
-}
-
-sub _assert_same_heading_relation_arg {
-    my ($self, $rtn_nm, $arg_nm, $other) = @_;
-    confess qq{$rtn_nm(): Bad $arg_nm arg; it isn't a Set::Relation}
-            . q{ object, or it doesn't have exactly the}
-            . q{ same set of attr names as the invocant.}
-        if !blessed $other or !$other->isa( __PACKAGE__ )
-            or !$self->_is_identical_hkeys(
-                $self->_heading(), $other->_heading() );
-    return;
 }
 
 sub is_proper_subset {
@@ -1683,7 +2165,7 @@ sub _join {
     if (first { $_->is_empty() } $topic, @{$others}) {
         # At least one input has zero tuples; so does result.
         my $rslt_h = {CORE::map { %{$_->_heading()} } $topic, @{$others}};
-        return __PACKAGE__->new( [keys %{$rslt_h}] );
+        return $topic->new( [keys %{$rslt_h}] );
     }
 
     # If we get here, all inputs have at least one tuple.
@@ -1753,7 +2235,7 @@ sub _join {
 sub _regular_join {
     my ($topic, $other, $both, $topic_only, $other_only) = @_;
 
-    my $result = __PACKAGE__->new();
+    my $result = $topic->new();
 
     $result->_heading( {CORE::map { ($_ => undef) }
         @{$both}, @{$topic_only}, @{$other_only}} );
@@ -1811,7 +2293,7 @@ sub product {
     if (first { $_->is_empty() } $topic, @{$others}) {
         # At least one input has zero tuples; so does result.
         my $rslt_h = {CORE::map { %{$_->_heading()} } $topic, @{$others}};
-        return __PACKAGE__->new( [keys %{$rslt_h}] );
+        return $topic->new( [keys %{$rslt_h}] );
     }
 
     # If we get here, all inputs have at least one tuple.
@@ -1842,7 +2324,7 @@ sub product {
 sub _regular_product {
     my ($topic, $other) = @_;
 
-    my $result = __PACKAGE__->new();
+    my $result = $topic->new();
 
     $result->_heading( {%{$topic->_heading()}, %{$other->_heading()}} );
     $result->_degree( $topic->degree() + $other->degree() );
@@ -1902,7 +2384,7 @@ sub quotient {
 
     return $proj_of_dividend_only
         ->_difference( $proj_of_dividend_only
-            ->_product( $divisor )
+            ->_regular_product( $divisor )
             ->_difference( $dividend )
             ->_projection( $dividend_only )
         );
@@ -1922,7 +2404,7 @@ sub composition {
 
     if ($topic->is_empty() or $other->is_empty()) {
         # At least one input has zero tuples; so does result.
-        return __PACKAGE__->new( [@{$topic_only}, @{$other_only}] );
+        return $topic->new( [@{$topic_only}, @{$other_only}] );
     }
 
     # If we get here, both inputs have at least one tuple.
@@ -1944,7 +2426,7 @@ sub composition {
     }
     if (@{$topic_only} == 0 and @{$other_only} == 0) {
         # The inputs have identical headings; result is ident-one relation.
-        return __PACKAGE__->new( [ {} ] );
+        return $topic->new( [ {} ] );
     }
 
     # If we get here, the inputs also have overlapping non-ident headings.
@@ -1981,6 +2463,8 @@ sub _ptn_conj_and_disj {
     return ($both, $only1, $only2);
 }
 
+###########################################################################
+
 sub _want_index {
     my ($self, $atnms) = @_;
     my $subheading = {CORE::map { ($_ => undef) } @{$atnms}};
@@ -2005,17 +2489,134 @@ sub _want_index {
 ###########################################################################
 
 sub join_with_group {
-    confess q{this routine isn't implemented yet};
+    my ($primary, $secondary, $group_attr) = @_;
+
+    confess q{join_with_group(): Bad $secondary arg;}
+            . q{ it isn't a Set::Relation object.}
+        if !blessed $secondary or !$secondary->isa( __PACKAGE__ );
+    $primary->_assert_valid_atnm_arg(
+        'join_with_group', '$group_attr', $group_attr );
+
+    my $primary_h = $primary->_heading();
+
+    confess q{join_with_group(): Bad $group_attr arg;}
+            . q{ that name for a new attr to add}
+            . q{ to $primary, consisting of grouped $secondary-only attrs,}
+            . q{ duplicates an attr of $primary (not being grouped).}
+        if exists $primary_h->{$group_attr};
+
+    # TODO: inline+merge what join/group do for better performance.
+
+    my ($both, $primary_only, $inner) = $primary->_ptn_conj_and_disj(
+            $primary_h, $secondary->_heading() );
+    my $inner_h = {CORE::map { $_ => undef } @{$inner}};
+
+    return $primary
+        ->_join( [$secondary] )
+        ->_group( $inner, $group_attr, [keys %{$primary_h}], $inner_h );
 }
 
 ###########################################################################
 
 sub rank {
-    confess q{this routine isn't implemented yet};
+    my ($topic, $name, $ord_func) = @_;
+
+    my $topic_h = $topic->_heading();
+
+    $topic->_assert_valid_atnm_arg( 'rank', '$name', $name );
+    confess q{rank(): Bad $name arg; that name for a new attr to add}
+            . q{ to the invocant, consisting of each tuple's numeric rank,}
+            . q{ duplicates an existing attr of the invocant.}
+        if exists $topic_h->{$name};
+
+    $topic->_assert_valid_func_arg( 'rank', '$ord_func', $ord_func );
+
+    my $result = $topic->new();
+
+    $result->_heading( {%{$topic_h}, $name => undef} );
+    $result->_degree( $topic->degree() + 1 );
+
+    if ($topic->is_empty()) {
+        return $result;
+    }
+
+    my $ext_topic_tuples = [];
+    my $topic_tuples_by_ext_tt_ref = {};
+
+    for my $topic_t (values %{$topic->_body()}) {
+        my $ext_topic_t = $topic->_export_nfmt_tuple( $topic_t );
+        push @{$ext_topic_tuples}, $ext_topic_t;
+        $topic_tuples_by_ext_tt_ref->{refaddr $ext_topic_t} = $topic_t;
+    }
+
+    my $sorted_ext_topic_tuples = [sort {
+        local $_ = { 'a' => $a, 'b' => $b };
+        $ord_func->();
+    } @{$ext_topic_tuples}];
+
+    my $result_b = $result->_body();
+
+    my $rank = -1;
+    for my $ext_topic_t (@{$sorted_ext_topic_tuples}) {
+        my $topic_t = $topic_tuples_by_ext_tt_ref->{refaddr $ext_topic_t};
+        $rank ++;
+        my $rank_atvl = [$rank, $topic->_ident_str( $rank )];
+        my $result_t = {$name => $rank_atvl, %{$topic_t}};
+        my $result_t_ident_str = $topic->_ident_str( $result_t );
+        $result_b->{$result_t_ident_str} = $result_t;
+    }
+    $result->_cardinality( $topic->cardinality() );
+
+    return $result;
 }
 
+###########################################################################
+
 sub limit {
-    confess q{this routine isn't implemented yet};
+    my ($topic, $ord_func, $min_rank, $max_rank) = @_;
+
+    $topic->_assert_valid_func_arg( 'limit', '$ord_func', $ord_func );
+
+    $topic->_assert_valid_nnint_arg( 'limit', '$min_rank', $min_rank );
+    $topic->_assert_valid_nnint_arg( 'limit', '$max_rank', $max_rank );
+    confess q{limit(): The $max_rank arg can't be less than the $min_rank.}
+        if $max_rank < $min_rank;
+
+    if ($topic->is_empty()) {
+        return $topic;
+    }
+
+    my $topic_b = $topic->_body();
+
+    my $ext_topic_tuples = [];
+    my $topic_tuples_by_ext_tt_ref = {};
+
+    for my $topic_t_ident_str (keys %{$topic_b}) {
+        my $topic_t = $topic_b->{$topic_t_ident_str};
+        my $ext_topic_t = $topic->_export_nfmt_tuple( $topic_t );
+        push @{$ext_topic_tuples}, $ext_topic_t;
+        $topic_tuples_by_ext_tt_ref->{refaddr $ext_topic_t}
+            = $topic_t_ident_str;
+    }
+
+    my $sorted_ext_topic_tuples = [sort {
+        local $_ = { 'a' => $a, 'b' => $b };
+        $ord_func->();
+    } @{$ext_topic_tuples}];
+
+    my $result = $topic->empty();
+
+    my $result_b = $result->_body();
+
+    for my $ext_topic_t
+            (@{$sorted_ext_topic_tuples}[$min_rank..$max_rank]) {
+        my $topic_t_ident_str
+            = $topic_tuples_by_ext_tt_ref->{refaddr $ext_topic_t};
+        $result_b->{$topic_t_ident_str} = $topic_b->{$topic_t_ident_str};
+    }
+    $result->_cardinality( scalar keys %{$result_b} );
+
+    return $result;
 }
 
 ###########################################################################
@@ -2156,8 +2757,10 @@ sub subst_in_restr {
     return $topic_to_subst
         ->_substitution( 'subst_in_restr', '$subst_attrs',
             '$subst_func', $subst_attrs, $subst_func, $subst_h )
-        ->_union( $topic_no_subst );
+        ->_union( [$topic_no_subst] );
 }
+
+###########################################################################
 
 sub static_subst_in_restr {
     my ($topic, $restr_func, $subst) = @_;
@@ -2173,8 +2776,10 @@ sub static_subst_in_restr {
 
     return $topic_to_subst
         ->_static_substitution( $subst )
-        ->_union( $topic_no_subst );
+        ->_union( [$topic_no_subst] );
 }
+
+###########################################################################
 
 sub subst_in_semijoin {
     my ($topic, $restr, $subst_attrs, $subst_func) = @_;
@@ -2193,8 +2798,10 @@ sub subst_in_semijoin {
     return $topic_to_subst
         ->_substitution( 'subst_in_semijoin', '$subst_attrs',
             '$subst_func', $subst_attrs, $subst_func, $subst_h )
-        ->_union( $topic_no_subst );
+        ->_union( [$topic_no_subst] );
 }
+
+###########################################################################
 
 sub static_subst_in_semijoin {
     my ($topic, $restr, $subst) = @_;
@@ -2211,25 +2818,134 @@ sub static_subst_in_semijoin {
 
     return $topic_to_subst
         ->_static_substitution( $subst )
-        ->_union( $topic_no_subst );
+        ->_union( [$topic_no_subst] );
 }
 
 ###########################################################################
 
 sub outer_join_with_group {
-    confess q{this routine isn't implemented yet};
+    my ($primary, $secondary, $group_attr) = @_;
+
+    confess q{outer_join_with_group(): Bad $secondary arg;}
+            . q{ it isn't a Set::Relation object.}
+        if !blessed $secondary or !$secondary->isa( __PACKAGE__ );
+    $primary->_assert_valid_atnm_arg(
+        'outer_join_with_group', '$group_attr', $group_attr );
+
+    my $primary_h = $primary->_heading();
+
+    confess q{outer_join_with_group(): Bad $group_attr arg;}
+            . q{ that name for a new attr to add}
+            . q{ to $primary, consisting of grouped $secondary-only attrs,}
+            . q{ duplicates an attr of $primary (not being grouped).}
+        if exists $primary_h->{$group_attr};
+
+    # TODO: inline+merge what join/group/etc do for better performance.
+
+    my ($both, $primary_only, $inner) = $primary->_ptn_conj_and_disj(
+            $primary_h, $secondary->_heading() );
+    my $inner_h = {CORE::map { $_ => undef } @{$inner}};
+
+    my ($pri_matched, $pri_nonmatched)
+        = @{$primary->_semijoin_and_diff( $secondary )};
+
+    my $result_matched = $pri_matched
+        ->_join( [$secondary] )
+        ->_group( $inner, $group_attr, [keys %{$primary_h}], $inner_h );
+
+    my $result_nonmatched = $pri_nonmatched
+        ->_static_extension( {$group_attr => $primary->new( $inner )} );
+
+    return $result_matched->_union( [$result_nonmatched] );
 }
+
+###########################################################################
 
 sub outer_join_with_undefs {
-    confess q{this routine isn't implemented yet};
+    my ($primary, $secondary) = @_;
+
+    confess q{outer_join_with_group(): Bad $secondary arg;}
+            . q{ it isn't a Set::Relation object.}
+        if !blessed $secondary or !$secondary->isa( __PACKAGE__ );
+
+    my (undef, undef, $exten_attrs) = $primary->_ptn_conj_and_disj(
+        $primary->_heading(), $secondary->_heading() );
+    my $filler = {CORE::map { $_ => undef } @{$exten_attrs}};
+
+    my ($pri_matched, $pri_nonmatched)
+        = @{$primary->_semijoin_and_diff( $secondary )};
+
+    my $result_matched = $pri_matched->_join( [$secondary] );
+
+    my $result_nonmatched = $pri_nonmatched->_static_extension( $filler );
+
+    return $result_matched->_union( [$result_nonmatched] );
 }
+
+###########################################################################
 
 sub outer_join_with_static_exten {
-    confess q{this routine isn't implemented yet};
+    my ($primary, $secondary, $filler) = @_;
+
+    confess q{outer_join_with_static_exten(): Bad $secondary arg;}
+            . q{ it isn't a Set::Relation object.}
+        if !blessed $secondary or !$secondary->isa( __PACKAGE__ );
+
+    confess q{outer_join_with_static_exten(): Bad $filler arg;}
+            . q{ it isn't a hash-ref.}
+        if ref $filler ne 'HASH';
+    confess q{outer_join_with_static_exten(): Bad $filler arg;}
+            . q{ it is a hash-ref, and there exist circular refs}
+            . q{ between itself or its value-typed components.}
+        if $primary->_tuple_arg_has_circular_refs( $filler );
+
+    my (undef, undef, $exten_attrs) = $primary->_ptn_conj_and_disj(
+        $primary->_heading(), $secondary->_heading() );
+    my $exten_h = {CORE::map { $_ => undef } @{$exten_attrs}};
+
+    confess q{outer_join_with_static_exten(): Bad $filler arg elem;}
+            . q{ it doesn't have exactly the}
+            . q{ same set of attr names as the sub-heading of $secondary}
+            . q{ that doesn't overlap with the heading of $primary.}
+        if !$primary->_is_identical_hkeys( $exten_h, $filler );
+
+    my ($pri_matched, $pri_nonmatched)
+        = @{$primary->_semijoin_and_diff( $secondary )};
+
+    my $result_matched = $pri_matched->_join( [$secondary] );
+
+    my $result_nonmatched = $pri_nonmatched->_static_extension( $filler );
+
+    return $result_matched->_union( [$result_nonmatched] );
 }
 
+###########################################################################
+
 sub outer_join_with_exten {
-    confess q{this routine isn't implemented yet};
+    my ($primary, $secondary, $exten_func) = @_;
+
+    confess q{outer_join_with_exten(): Bad $secondary arg;}
+            . q{ it isn't a Set::Relation object.}
+        if !blessed $secondary or !$secondary->isa( __PACKAGE__ );
+    $primary->_assert_valid_func_arg(
+        'outer_join_with_exten', '$exten_func', $exten_func );
+
+    my (undef, undef, $exten_attrs) = $primary->_ptn_conj_and_disj(
+        $primary->_heading(), $secondary->_heading() );
+    my $exten_h = {CORE::map { $_ => undef } @{$exten_attrs}};
+
+    my ($pri_matched, $pri_nonmatched)
+        = @{$primary->_semijoin_and_diff( $secondary )};
+
+    my $result_matched = $pri_matched->_join( [$secondary] );
+
+    # Note: if '_extension' dies due to what $exten_func did it would
+    # state the error is reported by 'extension' and with some wrong
+    # details; todo fix later; on correct it won't affect users though.
+    my $result_nonmatched = $pri_nonmatched
+        ->_extension( $exten_attrs, $exten_func, $exten_h );
+
+    return $result_matched->_union( [$result_nonmatched] );
 }
 
 ###########################################################################
@@ -2255,7 +2971,7 @@ Relation data type for Perl
 
 =head1 VERSION
 
-This document describes Set::Relation version 0.5.0 for Perl 5.
+This document describes Set::Relation version 0.6.0 for Perl 5.
 
 =head1 SYNOPSIS
 
@@ -2303,14 +3019,11 @@ object class that represents a L<Muldis D|Muldis::D> quasi-relation value,
 and its methods implement all the Muldis D relational operators.
 
 B<WARNING:  This module is still experimental and may change in
-incompatible ways between releases.  It is also under construction and
-about a third of the planned short term features are yet missing.  However,
-those features that are present have complete code and documentation.
-While the existing features should be fully useable now and a review of
-their code makes them look correct, most features have in fact not yet been
-tested in running code and so might actually be broken.  This module might
-in fact work for you now, but it is officially pre-alpha quality.  Please
-treat it mainly as a developer preview, to experiment possible future use.>
+incompatible ways between releases.  While the module is considered feature
+complete, and is fully documented, and a review of its code makes it look
+correct, most features have in fact not yet been tested in running code and
+so might actually be broken.  This module might in fact work for you now,
+but it is officially alpha quality.  Please use it with caution.>
 
 B<If you want to help out with this module's development, generally the
 most helpful thing you can do to start out is to flesh out the test suite.
@@ -2344,7 +3057,8 @@ I<This documentation is pending.>
 
 =head2 Appropriate Uses For Set::Relation
 
-Set::Relation I<is> intended to be used in production environments.  It has
+Set::Relation I<is> intended to be used in production environments
+I<(except for the fact it is mostly untested at the moment)>.  It has
 been developed according to a rigorously thought out API and behaviour
 specification, and it should be easy to learn, to install and use, and to
 extend.  It is expected to be maintained and supported by the original
@@ -3050,7 +3764,7 @@ This functional method is the same as C<projection> but that it results in
 the complementary subset of attributes of its invocant when given the same
 argument.
 
-=head2 TODO - wrap
+=head2 wrap
 
 C<method wrap of Set::Relation ($topic: Array|Str $inner, Str $outer)>
 
@@ -3070,7 +3784,7 @@ as an old one being wrapped into it.  This method will fail if C<$inner>
 specifies any attribute names that C<$topic> doesn't have, or if C<$outer>
 is the same as a C<$topic> attribute that isn't being wrapped.
 
-=head2 TODO - cmpl_wrap
+=head2 cmpl_wrap
 
 C<method cmpl_wrap of Set::Relation ($topic: Array|Str $cmpl_inner, Str
 $outer)>
@@ -3079,7 +3793,7 @@ This functional method is the same as C<wrap> but that it wraps the
 complementary subset of attributes of C<$topic> to those specified by
 C<$cmpl_inner>.
 
-=head2 TODO - unwrap
+=head2 unwrap
 
 C<method unwrap of Set::Relation ($topic: Str $outer, Array|Str $inner)>
 
@@ -3098,7 +3812,7 @@ method will fail if C<$topic> has at least 1 tuple and C<$inner> does not
 match the names of the attributes of C<$topic{$outer}> for every tuple of
 C<$topic>.
 
-=head2 TODO - group
+=head2 group
 
 C<method group of Set::Relation ($topic: Array|Str $inner, Str $outer)>
 
@@ -3121,13 +3835,13 @@ C<$inner> is empty, then the result has all the same tuples and attributes
 as before plus a new relation-typed attribute of degree zero whose value
 per tuple is of cardinality one; or, if C<$inner> lists all attributes of
 C<$topic>, then the result has a single tuple of a single attribute whose
-value is the same as C<$topic>.  This method supports the new attribute
-having the same name as an old one being grouped into it.  This method
-will fail if C<$inner> specifies any attribute names that C<$topic> doesn't
-have, or if C<$outer> is the same as C<$topic> attributes that aren't being
-grouped.
+value is the same as C<$topic> (except that the result has zero tuples when
+C<$topic> does).  This method supports the new attribute having the same
+name as an old one being grouped into it.  This method will fail if
+C<$inner> specifies any attribute names that C<$topic> doesn't have, or if
+C<$outer> is the same as C<$topic> attributes that aren't being grouped.
 
-=head2 TODO - cmpl_group
+=head2 cmpl_group
 
 C<method cmpl_group of Set::Relation ($topic: Array|Str $group_per, Str
 $outer)>
@@ -3136,7 +3850,7 @@ This functional method is the same as C<group> but that it groups the
 complementary subset of attributes of C<$topic> to those specified by
 C<$group_per>.
 
-=head2 TODO - ungroup
+=head2 ungroup
 
 C<method ungroup of Set::Relation ($topic: Str $outer, Array|Str $inner)>
 
@@ -3273,7 +3987,7 @@ to see what attributes it would have resulted in).  This method will fail
 if C<$topic> has at least 1 tuple and the result of C<$func> does not have
 matching attribute names to those named by C<$result_attrs>.
 
-=head2 TODO - summary
+=head2 summary
 
 C<method summary of Set::Relation ($topic: Array|Str $group_per, Array|Str
 $result_attrs, Code $summ_func)>
@@ -3512,7 +4226,7 @@ attributes that only one of the arguments has; that is, the result has all
 of and just the attributes that were not involved in matching the tuples of
 the inputs.
 
-=head2 TODO - join_with_group
+=head2 join_with_group
 
 C<method join_with_group of Set::Relation ($primary: Set::Relation
 $secondary, Str $group_attr)>
@@ -3533,7 +4247,7 @@ duplication of the parent record values.
 These Set::Relation object methods are pure functional.  They are specific
 to supporting ranking and quotas.
 
-=head2 TODO - rank
+=head2 rank
 
 C<method rank of Set::Relation ($topic: Str $name, Code $ord_func)>
 
@@ -3553,7 +4267,7 @@ the result of C<rank> is always a total ordering and so there is no "dense"
 / "not dense" distinction (however a partial ordering can be implemented
 over it).
 
-=head2 TODO - limit
+=head2 limit
 
 C<method limit of Set::Relation ($topic: Code $ord_func, UInt $min_rank,
 UInt $max_rank)>
@@ -3662,7 +4376,7 @@ C<static_substitution> is to C<substitution>.
 These Set::Relation object methods are pure functional.  They are specific
 to supporting outer-joins.
 
-=head2 TODO - outer_join_with_group
+=head2 outer_join_with_group
 
 C<method outer_join_with_group of Set::Relation ($primary: Set::Relation
 $secondary, Str $group_attr)>
@@ -3673,7 +4387,7 @@ every tuple of C<$primary> has exactly 1 corresponding tuple in the result,
 but where there were no matching C<$secondary> tuples, the result attribute
 named by C<$group_attr> contains zero tuples rather than 1+.
 
-=head2 TODO - outer_join_with_undefs
+=head2 outer_join_with_undefs
 
 C<method outer_join_with_undefs of Set::Relation ($primary: Set::Relation
 $secondary)>
@@ -3684,7 +4398,7 @@ tuples coming from a C<$primary> tuple that didn't match a C<$secondary>
 tuple, the result attributes coming from just C<$secondary> are filled with
 the Perl undef.
 
-=head2 TODO - outer_join_with_static_exten
+=head2 outer_join_with_static_exten
 
 C<method outer_join_with_static_exten of Set::Relation ($primary:
 Set::Relation $secondary, Hash $filler)>
@@ -3697,7 +4411,7 @@ heading matches the projection of C<$secondary>'s attributes that aren't in
 common with C<$primary>, and whose body is the literal values to use for
 those missing attribute values.
 
-=head2 TODO - outer_join_with_exten
+=head2 outer_join_with_exten
 
 C<method outer_join_with_exten of Set::Relation ($primary: Set::Relation
 $secondary, Code $exten_func)>
@@ -3728,6 +4442,7 @@ L<version-ver(0.74..*)|version>.
 
 It also requires these Perl 5 packages that are on CPAN:
 L<namespace::clean-ver(0.09..*)|namespace::clean>,
+L<List::MoreUtils-ver(0.22..*)|List::MoreUtils>,
 L<Moose-ver(0.68..*)|Moose>.
 
 =head1 INCOMPATIBILITIES
