@@ -13,15 +13,28 @@ use version 0.74;
 use Test::More;
 use Test::Deep;
 
-plan( 'tests' => 33 );
+plan( 'tests' => 2*33 );
+
+my $sr_class_name;
+sub relation { return $sr_class_name->new( @_ ); }
 
 use Set::Relation::V1;
+$sr_class_name = 'Set::Relation::V1';
+validate_sr_class();
+
+use Set::Relation::V2;
+$sr_class_name = 'Set::Relation::V2';
+validate_sr_class();
+
+###########################################################################
+
+sub validate_sr_class {
 
 ####
 
 my $db = {};
 
-$db->{suppliers} = Set::Relation::V1->new( [
+$db->{suppliers} = relation( [
         [ qw(sno sname status city  ) ], [
         [ qw(S1  Smith 20     London) ],
         [ qw(S2  Jones 10     Paris ) ],
@@ -31,7 +44,7 @@ $db->{suppliers} = Set::Relation::V1->new( [
     ],
 ] );
 
-$db->{parts} = Set::Relation::V1->new( [
+$db->{parts} = relation( [
         [ qw(pno pname color weight city  ) ], [
         [ qw(P1  Nut   Red   12.0   London) ],
         [ qw(P2  Bolt  Green 17.0   Paris ) ],
@@ -42,7 +55,7 @@ $db->{parts} = Set::Relation::V1->new( [
     ],
 ] );
 
-$db->{shipments} = Set::Relation::V1->new( [
+$db->{shipments} = relation( [
         [ qw(sno pno qty) ], [
         [ qw(S1  P1  300) ],
         [ qw(S1  P2  200) ],
@@ -82,21 +95,21 @@ my @shipment_tuples =
 
 # test identity
 {
-    isa_ok( $s, 'Set::Relation::V1' );
+    isa_ok( $s, $sr_class_name );
     ok( $s->is_identical($s), 'relation is === to itself' );
-    ok( $s->is_identical( Set::Relation::V1->new( [@supplier_tuples] ) ),
+    ok( $s->is_identical( relation( [@supplier_tuples] ) ),
         'relation is === to relation with same members'
     );
 
-    isa_ok( $p, 'Set::Relation::V1' );
+    isa_ok( $p, $sr_class_name );
     ok( $p->is_identical($p), 'relation is === to itself' );
-    ok( $p->is_identical( Set::Relation::V1->new( [@part_tuples] ) ),
+    ok( $p->is_identical( relation( [@part_tuples] ) ),
         'relation is === to relation with same members'
     );
 
-    isa_ok( $sp, 'Set::Relation::V1' );
+    isa_ok( $sp, $sr_class_name );
     ok( $sp->is_identical($sp), 'relation is === to itself' );
-    ok( $sp->is_identical( Set::Relation::V1->new( [@shipment_tuples] ) ),
+    ok( $sp->is_identical( relation( [@shipment_tuples] ) ),
         'relation is === to relation with same members'
     );
 
@@ -110,10 +123,10 @@ my @shipment_tuples =
         'relations of different class are not ===' );
 
     ok( !$s->is_identical(
-            Set::Relation::V1->new( [ $supplier_tuples[0] ] ) ),
+            relation( [ $supplier_tuples[0] ] ) ),
         'relations of same class but different members are not ==='
     );
-    ok( !$s->is_identical( Set::Relation::V1->new( [] ) ),
+    ok( !$s->is_identical( relation( [] ) ),
         'relations of same class but different members are not ==='
     );
 }
@@ -124,7 +137,7 @@ my @shipment_tuples =
 {
     diag('restriction');
     my $s1 = $s->restriction( sub { $_->{sno} eq 'S1' } );
-    my $expect = Set::Relation::V1->new( [ $supplier_tuples[0] ] );
+    my $expect = relation( [ $supplier_tuples[0] ] );
     ok( $s1->is_identical($expect), 'restriction' );
     cmp_ok( $s1->cardinality, '==', 1, 'cardinality' );
     cmp_bag( $s1->members, $expect->members, 'same members' );
@@ -133,7 +146,7 @@ my @shipment_tuples =
 # projection
 {
     diag('projection');
-    my $expect = Set::Relation::V1->new(
+    my $expect = relation(
         [ map { { city => $_ } } qw(London Paris Athens) ] );
     my $s1 = $s->projection('city');
     ok( $s1->is_identical($expect), 'projection' );
@@ -153,7 +166,7 @@ my @shipment_tuples =
     my $s1 = $s->rename($map);
     cmp_ok( $s->cardinality, '==', $s1->cardinality,
         'same cardinality on rename' );
-    my $expect = Set::Relation::V1->new( [
+    my $expect = relation( [
             [ qw(a   b     c      d     ) ], [
             [ qw(S1  Smith 20     London) ],
             [ qw(S2  Jones 10     Paris ) ],
@@ -169,8 +182,8 @@ my @shipment_tuples =
 # union
 {
     diag('union');
-    my $s1 = Set::Relation::V1->new( [ @supplier_tuples[ 0, 1, 2 ] ] );
-    my $s2 = Set::Relation::V1->new( [ @supplier_tuples[ 1, 2, 3, 4 ] ] );
+    my $s1 = relation( [ @supplier_tuples[ 0, 1, 2 ] ] );
+    my $s2 = relation( [ @supplier_tuples[ 1, 2, 3, 4 ] ] );
     my $s3 = $s1->union($s2);
     ok( $s->is_identical($s3), 'simple union' );
     cmp_bag( $s->members, $s3->members, 'same members' );
@@ -186,7 +199,7 @@ my @shipment_tuples =
         city   => 'Athens',
     };
     my $s1 = $s->insertion($inserted);
-    my $expect = $s->union( Set::Relation::V1->new( [$inserted] ) );
+    my $expect = $s->union( relation( [$inserted] ) );
     ok( $s1->is_identical($expect), 'insertion/union' );
     cmp_bag( $s1->members, $expect->members, 'same members' );
 }
@@ -201,9 +214,9 @@ my @shipment_tuples =
         city   => 'Paris',
     };
     my $s1 = $s->intersection(
-        Set::Relation::V1->new( [ @supplier_tuples[ 0, 4 ], $another ] )
+        relation( [ @supplier_tuples[ 0, 4 ], $another ] )
     );
-    my $expect = Set::Relation::V1->new( [ @supplier_tuples[ 0, 4 ] ] );
+    my $expect = relation( [ @supplier_tuples[ 0, 4 ] ] );
     ok( $s1->is_identical($expect), 'intersection' );
     cmp_bag( $s1->members, $expect->members, 'same members' );
 }
@@ -218,7 +231,7 @@ my @shipment_tuples =
         scalar(@shipment_tuples),
         'cardinality of join'
     );
-    my $expect = Set::Relation::V1->new(
+    my $expect = relation(
         [ [qw(sno sname status city pno qty)], [] ] );
     for my $sp (@shipment_tuples) {
         my $r = $s->restriction( sub { $_->{sno} eq $sp->{sno} } );
@@ -238,5 +251,9 @@ my @shipment_tuples =
 }
 
 ####
+
+} # sub main
+
+###########################################################################
 
 1; # Magic true value required at end of a reusable file's code.

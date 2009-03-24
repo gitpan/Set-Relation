@@ -7,18 +7,31 @@ use version 0.74;
 
 use Test::More;
 
-plan( 'tests' => 18 );
+plan( 'tests' => 2*18 );
+
+my $sr_class_name;
+sub relation { return $sr_class_name->new( @_ ); }
 
 use Set::Relation::V1;
+$sr_class_name = 'Set::Relation::V1';
+validate_sr_class();
+
+use Set::Relation::V2;
+$sr_class_name = 'Set::Relation::V2';
+validate_sr_class();
+
+###########################################################################
+
+sub validate_sr_class {
 
 ####
 
-my $r1 = Set::Relation::V1->new( [ [ 'x', 'y' ], [
+my $r1 = relation( [ [ 'x', 'y' ], [
     [ 4, 7 ],
     [ 3, 2 ],
 ] ] );
 pass( 'no death from instantiating $r1 w ordered-attrs format members' );
-isa_ok( $r1, 'Set::Relation::V1' );
+isa_ok( $r1, $sr_class_name );
 
 my $got_r1_as_nfmt_perl = $r1->members();
 pass( 'no death from extract $r1 members in named-attrs format' );
@@ -34,13 +47,13 @@ is_deeply( $got_r1_as_nfmt_perl, $exp_r1_as_nfmt_perl, q{$r1n val corr} );
 
 ####
 
-my $r2 = Set::Relation::V1->new( [
+my $r2 = relation( [
     { 'y' => 5, 'z' => 6 },
     { 'y' => 2, 'z' => 1 },
     { 'y' => 2, 'z' => 4 },
 ] );
 pass( 'no death from instantiating $r2 with named-attrs format members' );
-isa_ok( $r2, 'Set::Relation::V1' );
+isa_ok( $r2, $sr_class_name );
 
 my $got_r2_as_ofmt_perl = $r2->members( 1 );
 pass( 'no death from extract $r2 members in named-attrs format' );
@@ -59,7 +72,7 @@ is_deeply( $got_r2_as_ofmt_perl, $exp_r2_as_ofmt_perl, q{$r2o val corr} );
 
 my $r3 = $r1->join( $r2 );
 pass( 'no death from joining $r1 and $r2 to yield $r3' );
-isa_ok( $r3, 'Set::Relation::V1' );
+isa_ok( $r3, $sr_class_name );
 
 ####
 
@@ -90,5 +103,9 @@ my $exp_r3_as_ofmt_perl = [ [ 'x', 'y', 'z' ], [
 is_deeply( $got_r3_as_ofmt_perl, $exp_r3_as_ofmt_perl, q{$r3o val corr} );
 
 ####
+
+} # sub main
+
+###########################################################################
 
 1; # Magic true value required at end of a reusable file's code.
