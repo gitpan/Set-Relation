@@ -1,6 +1,47 @@
                                Set::Relation
 ---------------------------------------------------------------------------
 
+2009-04-21   Darren Duncan <perl@DarrenDuncan.net>
+
+    * Set::Relation version 0.10.0 for Perl 5 is released on CPAN as
+    Set-Relation-0.10.0.tar.gz.
+
+    * Updated external dependencies: namespace::clean to version 0.11,
+    Moose/etc to version 0.75, Class::MOP to version 0.82.
+
+    * This release features a number of functional method updates or
+    additions in accordance with the latest Muldis D spec (v0.64.0).
+
+    * (Relation.pm, V2.pm, V1.pm)  Added, to the Set::Relation role and its
+    composing classes, 2 new functional methods
+    "[rank|limit]_by_attr_names", which are like "rank|limit" but that
+    rather than taking a closure function to determine relative ordering of
+    each pair of tuples, it takes an array of attribute names to order by;
+    the new methods are more specialized versions of the old ones, and are
+    recommended for use where they are applicable.  It is significant to
+    note that these are the first Set::Relation routines that make use of
+    the implementation technique of generating and evaling Perl code to do
+    the actual work, which allows us to unroll what would otherwise be
+    loops iterating over the attributes being ordered by; this should
+    further yield better performance; both V2 and V1 have done this.
+
+    * (Relation.pm, V2.pm, V1.pm)  Changed the "summary" functional method
+    by renaming its "result_attr_names" parameter to "summ_attr_names" and
+    redefining its functionality more in terms of "extension" rather than
+    "map"; the function given to "summ_func" must now just result in a
+    tuple with attributes to add to a result which now already has all the
+    attributes named by "group_per", rather than resulting in all
+    attributes for the result.  The new version of "summary" should be much
+    easier to use as presumably users always want to keep the attributes
+    they are grouping per, and they now don't have to spell them out every
+    time.  For the rare case where you want the old behaviour, now you have
+    to do it manually with an explicit "cmpl_group" plus "map".
+
+    * (Relation.pm, V2.pm, V1.pm)  Added, to the Set::Relation role and its
+    composing classes, new functional method "cardinality_per_group" which
+    is like "summary" but shorthands the common case where people just want
+    a count of tuples per group and not any other information.
+
 2009-03-24   Darren Duncan <perl@DarrenDuncan.net>
 
     * Set::Relation version 0.9.0 for Perl 5 is released on CPAN as

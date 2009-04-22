@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:                Set-Relation
-version:             0.9.0
+version:             0.10.0
 abstract:            Relation data type for Perl
 license:             lgpl
 author:              
@@ -8,11 +8,11 @@ author:
 generated_by:        ExtUtils::MakeMaker version 6.42
 distribution_type:   module
 requires:     
-    Class::MOP:                    0.78
+    Class::MOP:                    0.82
     List::MoreUtils:               0.22
-    Moose:                         0.72
-    Moose::Role:                   0.72
-    namespace::clean:              0.09
+    Moose:                         0.75
+    Moose::Role:                   0.75
+    namespace::clean:              0.11
     Test::Deep:                    0
     version:                       0.74
 meta-spec:

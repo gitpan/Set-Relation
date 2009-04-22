@@ -7,10 +7,10 @@ use warnings FATAL => 'all';
 ###########################################################################
 
 { package Set::Relation; # role
-    use version 0.74; our $VERSION = qv('0.9.0');
+    use version 0.74; our $VERSION = qv('0.10.0');
     # Note: This given version applies to all of this file's packages.
 
-    use Moose::Role 0.72;
+    use Moose::Role 0.75;
 
     use namespace::clean -except => 'meta';
 
@@ -52,6 +52,7 @@ use warnings FATAL => 'all';
     requires 'static_extension';
     requires 'map';
     requires 'summary';
+    requires 'cardinality_per_group';
 
     requires 'is_identical';
     requires 'is_subset';
@@ -71,7 +72,9 @@ use warnings FATAL => 'all';
     requires 'join_with_group';
 
     requires 'rank';
+    requires 'rank_by_attr_names';
     requires 'limit';
+    requires 'limit_by_attr_names';
 
     requires 'substitution';
     requires 'static_substitution';
@@ -92,7 +95,7 @@ use warnings FATAL => 'all';
 
 { package Set::Relation::Mutable; # role
 
-    use Moose::Role 0.72;
+    use Moose::Role 0.75;
 
     use namespace::clean -except => 'meta';
 
@@ -125,7 +128,7 @@ Relation data type for Perl
 
 =head1 VERSION
 
-This document describes Set::Relation version 0.9.0 for Perl 5.
+This document describes Set::Relation version 0.10.0 for Perl 5.
 
 =head1 SYNOPSIS
 
@@ -1200,8 +1203,8 @@ C<$topic>; otherwise it might be multiple invoked.
 
 =head2 summary
 
-C<method summary of Set::Relation ($topic: Array|Str $group_per, Array|Str
-$result_attr_names, Code $summ_func, Bool $allow_dup_tuples?)>
+C<method summary of Set::Relation ($topic: Array|Str $group_per,
+Array|Str $summ_attr_names, Code $summ_func, Bool $allow_dup_tuples?)>
 
 This functional method provides a convenient context for using aggregate
 functions to derive a per-group summary relation, which is its result, from
@@ -1216,8 +1219,10 @@ subroutine given in C<$summ_func> results in a second tuple when the first
 tuple is its C<$_> topic; the C<$_> tuple has the 2 attribute names
 C<summarize> and C<per>, which are valued with the relation-valued
 attribute and tuple-valued attribute, respectively.  As per a subroutine
-that C<map> applies, the subroutine given in C<$summ_func> effectively
-takes a whole post-grouping input tuple and results in a whole tuple; the
+that C<extension> applies, the subroutine given in C<$summ_func>
+effectively takes a whole post-grouping input tuple and results in a
+partial tuple that would be joined by C<summary> with the C<per> tuple to
+get the result tuple; the
 applied subroutine would directly invoke any N-adic / aggregate operators,
 and extract their inputs from (or calculate) C<summarize> as it sees fit.
 Note that C<summary> is not intended to be used to summarize an entire
@@ -1225,17 +1230,30 @@ C<$topic> relation at once (except by chance of it resolving to 1 group);
 you should instead invoke your summarize-all C<$summ_func> directly, or
 inline it, rather than by way of C<summary>, especially if you want a
 single-tuple result on an empty C<$topic> (which C<summary>) won't do.
-Now, C<summary> requires the extra C<$result_attr_names> argument to
+Now, C<summary> requires the extra C<$summ_attr_names> argument to
 prevent ambiguity in the general case where C<$topic> might have zero
 tuples, because in that situation, C<$summ_func> would never be invoked,
-and the names of the attributes of the result are not known (we don't
+and the names of the attributes to add to C<per> are not known (we don't
 generally assume that C<summary> can reverse-engineer C<$summ_func> to see
 what attributes it would have resulted in).  This method will fail if
 C<$topic> has at least 1 tuple and the result of C<$summ_func> does not
-have matching attribute names to those named by C<$result_attr_names>.  If
+have matching attribute names to those named by C<$summ_attr_names>.  If
 this method's C<$allow_dup_tuples> argument is false (the default), then
 C<$summ_func> is guaranteed to be invoked just once per distinct post-group
 tuple; otherwise it might be multiple invoked.
+
+=head2 cardinality_per_group
+
+C<method cardinality_per_group of Set::Relation ($topic:
+Array|Str $group_per, Str $count_attr_name, Bool $allow_dup_tuples?)>
+
+This functional method is a convenient shorthand for the common use of
+C<summary> that is just counting the tuples of each group.  This function
+is like C<cmpl_group> but that the single added attribute, rather than an
+RVA of the grouped C<$topic> attributes, has the cardinality that said RVA
+would have had.  The result's heading consists of the attributes named in
+C<$group_per> plus the attribute named in C<$count_attr_name> (a positive
+integer).
 
 =head1 Multiple Input Relation Functional Methods
 
@@ -1482,6 +1500,33 @@ the result of C<rank> is always a total ordering and so there is no "dense"
 / "not dense" distinction (however a partial ordering can be implemented
 over it).
 
+=head2 rank_by_attr_names
+
+C<method rank_by_attr_names of Set::Relation ($topic: Str $name,
+Array|Str $order_by)>
+
+This functional method provides a convenient short-hand of C<rank> for the
+common case of ranking tuples of a relation on a sequential list of its
+named attributes; it simply takes a C<$order_by> array argument rather than
+a Perl closure argument, and it ranks each pair of tuples by comparing
+corresponding attribute values in the order that they are named in
+C<$order_by>, stopping once a comparison doesn't result in I<same>.  Iff
+C<$order_by> is a Str then it is equivalent to an C<$order_by> that is a
+single-element Array whose element is that Str; the rest of this
+documentation assumes that C<$order_by> is simply an Array.  Each
+element of C<$order_by> is either a Str or a 1-3 element Array; in the
+first case, that is simply the name of the attribute; in the second case,
+the Array has these 1-3 elements in order: attribute name, "is reverse
+order" direction indicator, and comparison operator.  This method will fail
+if C<$order_by> contains any non-Str|Array elements, or if it names an
+attribute that C<$topic> doesn't have.  The "is reverse order" direction
+indicator is a boolean value; if it is false/undefined/missing then
+ordering on that attribute will be as per usual for the comparator; if it
+is true then the result is the reverse to what is usual.  This method will
+fail if the comparison operator is defined and is anything other than
+C<cmp> (string compare semantics) or C<< <=> >> (numeric compare
+semantics); if it is undefined then C<cmp> (string) is the default.
+
 =head2 limit
 
 C<method limit of Set::Relation ($topic: Code $ord_func, UInt $min_rank,
@@ -1502,6 +1547,14 @@ tuples and C<$min_rank> matches the rank of a source tuple, then the result
 will always have at least 1 tuple.  Note that C<limit> provides the
 functionality of SQL's "LIMIT/OFFSET" feature in combination with "ORDER
 BY" but that the result tuples of C<limit> do not remain ordered.
+
+=head2 limit_by_attr_names
+
+C<method limit_by_attr_names of Set::Relation ($topic: Array|Str $order_by,
+UInt $min_rank, UInt $max_rank)>
+
+This functional method is to C<limit> what C<rank_by_attr_names> is to
+C<rank>.
 
 =head1 Relational Substitution Functional Methods
 
@@ -1739,8 +1792,8 @@ installation by users of earlier Perl versions:
 L<version-ver(0.74..*)|version>.
 
 It also requires these Perl 5 packages that are on CPAN:
-L<namespace::clean-ver(0.09..*)|namespace::clean>,
-L<Moose::Role-ver(0.72..*)|Moose::Role>.
+L<namespace::clean-ver(0.11..*)|namespace::clean>,
+L<Moose::Role-ver(0.75..*)|Moose::Role>.
 
 =head1 INCOMPATIBILITIES
 

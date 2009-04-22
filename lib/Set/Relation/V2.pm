@@ -9,12 +9,12 @@ use Set::Relation 0.009000;
 ###########################################################################
 
 { package Set::Relation::V2; # class
-    use version 0.74; our $VERSION = qv('0.9.0');
+    use version 0.74; our $VERSION = qv('0.10.0');
 
     use Scalar::Util 'refaddr';
     use List::MoreUtils 'any', 'all', 'notall', 'uniq';
 
-    use Moose 0.72;
+    use Moose 0.75;
 
     use namespace::clean -except => 'meta';
 
@@ -1714,15 +1714,15 @@ sub map {
 ###########################################################################
 
 sub summary {
-    my ($topic, $group_per, $result_attr_names, $summ_func,
+    my ($topic, $group_per, $summ_attr_names, $summ_func,
         $allow_dup_tuples) = @_;
 
     (my $group_per_h, $group_per)
         = $topic->_atnms_hr_from_assert_valid_atnms_arg(
             'summary', '$group_per', $group_per );
-    (my $result_h, $result_attr_names)
+    (my $exten_h, $summ_attr_names)
         = $topic->_atnms_hr_from_assert_valid_atnms_arg(
-            'summary', '$result_attr_names', $result_attr_names );
+            'summary', '$summ_attr_names', $summ_attr_names );
     $topic->_assert_valid_func_arg( 'summary', '$summ_func', $summ_func );
 
     my $topic_h = $topic->_heading();
@@ -1731,25 +1731,20 @@ sub summary {
             . q{ isn't a subset of the invocant's heading.}
         if notall { exists $topic_h->{$_} } @{$group_per};
 
+    confess q{summary(): Bad $summ_attr_names arg; one or more of those}
+            . q{ names for new summary attrs to add to the invocant }
+            . q{ duplicates an attr of the invocant not being grouped.}
+        if any { exists $group_per_h->{$_} } @{$summ_attr_names};
+
     my $inner = [grep { !$group_per_h->{$_} } CORE::keys %{$topic_h}];
     my $inner_h = {CORE::map { $_ => undef } @{$inner}};
 
     my (undef, $topic_attrs_no_gr, undef)
         = $topic->_ptn_conj_and_disj( $topic_h, $inner_h );
 
-    if (@{$result_attr_names} == 0) {
-        # Map to zero attrs yields identity relation zero or one.
-        if ($topic->is_empty()) {
-            return $topic->new();
-        }
-        else {
-            return $topic->new( [ {} ] );
-        }
-    }
-
     my $result = $topic->new();
 
-    $result->_heading( $result_h );
+    $result->_heading( {%{$group_per_h}, %{$exten_h}} );
 
     if ($topic->is_empty()) {
         # An empty $topic means an empty result.
@@ -1779,18 +1774,74 @@ sub summary {
         my $group_per_t = {CORE::map { ($_ => $any_mtpt->{$_}) }
             @{$topic_attrs_no_gr}};
 
-        my $result_t;
+        my $exten_t;
         {
             local $_ = {
                 'summarize' => $inner_r,
                 'per' => $topic->_export_nfmt_tuple( $group_per_t ),
             };
-            $result_t = $summ_func->();
+            $exten_t = $summ_func->();
         }
         $topic->_assert_valid_tuple_result_of_func_arg( 'summary',
-            '$summ_func', '$result_attr_names', $result_t, $result_h );
-        $result_t = $topic->_import_nfmt_tuple( $result_t );
+            '$summ_func', '$summ_attr_names', $exten_t, $exten_h );
+        $exten_t = $topic->_import_nfmt_tuple( $exten_t );
 
+        my $result_t = {%{$group_per_t}, %{$exten_t}};
+        $result_b->{refaddr $result_t} = $result_t;
+    }
+
+    return $result;
+}
+
+###########################################################################
+
+sub cardinality_per_group {
+    my ($topic, $group_per, $count_attr_name, $allow_dup_tuples) = @_;
+
+    (my $group_per_h, $group_per)
+        = $topic->_atnms_hr_from_assert_valid_atnms_arg(
+            'cardinality_per_group', '$group_per', $group_per );
+    $topic->_assert_valid_atnm_arg(
+        'cardinality_per_group', '$count_attr_name', $count_attr_name );
+
+    my $topic_h = $topic->_heading();
+
+    confess q{cardinality_per_group(): Bad $group_per arg;}
+            . q{ that attr list isn't a subset of the invocant's heading.}
+        if notall { exists $topic_h->{$_} } @{$group_per};
+
+    confess q{cardinality_per_group(): Bad $count_attr_name arg;}
+            . q{ that name for a new attr to add to the invocant}
+            . q{ duplicates an attr of the invocant not being grouped.}
+        if exists $group_per_h->{$count_attr_name};
+
+    my $inner = [grep { !$group_per_h->{$_} } CORE::keys %{$topic_h}];
+    my $inner_h = {CORE::map { $_ => undef } @{$inner}};
+
+    my (undef, $topic_attrs_no_gr, undef)
+        = $topic->_ptn_conj_and_disj( $topic_h, $inner_h );
+
+    my $result = $topic->new();
+
+    $result->_heading( {%{$group_per_h}, $count_attr_name => undef} );
+
+    if ($topic->is_empty()) {
+        # An empty $topic means an empty result.
+        return $result;
+    }
+
+    if (!$allow_dup_tuples and !$topic->_is_known_dup_free()) {
+        $topic->_dup_free_want_index_over_all_attrs();
+    }
+
+    my $result_b = $result->_body();
+    my $topic_index = $topic->_want_index( $topic_attrs_no_gr );
+    for my $matched_topic_b (values %{$topic_index}) {
+        my $count = scalar CORE::keys %{$matched_topic_b};
+        my $any_mtpt = (values %{$matched_topic_b})[0];
+        my $group_per_t = {CORE::map { ($_ => $any_mtpt->{$_}) }
+            @{$topic_attrs_no_gr}};
+        my $result_t = {%{$group_per_t}, $count_attr_name => $count};
         $result_b->{refaddr $result_t} = $result_t;
     }
 
@@ -2764,6 +2815,119 @@ sub rank {
 
 ###########################################################################
 
+sub rank_by_attr_names {
+    my ($topic, $name, $order_by) = @_;
+
+    my $topic_h = $topic->_heading();
+
+    $topic->_assert_valid_atnm_arg( 'rank_by_attr_names', '$name', $name );
+    confess q{rank_by_attr_names(): Bad $name arg; that name for a new}
+            . q{ attr to add to the invocant, consisting of each tuple's}
+            . q{ numeric rank, duplicates an existing attr of th invocant.}
+        if exists $topic_h->{$name};
+
+    $order_by = $topic->_normalize_order_by_arg(
+        'rank_by_attr_names', '$order_by', $order_by );
+
+    my $result = $topic->new();
+
+    $result->_heading( {%{$topic_h}, $name => undef} );
+
+    if ($topic->is_empty()) {
+        return $result;
+    }
+
+    my $sort_func = $topic->_sort_func_from_order_by( $order_by );
+
+    if (!$topic->_is_known_dup_free()) {
+        $topic->_dup_free_want_index_over_all_attrs();
+    }
+
+    my $result_b = $result->_body();
+
+    my $rank = -1;
+    for my $topic_t (@{$sort_func->( $topic )}) {
+        $rank ++;
+        my $result_t = {$name => $rank, %{$topic_t}};
+        $result_b->{refaddr $result_t} = $result_t;
+    }
+
+    return $result;
+}
+
+###########################################################################
+
+sub _normalize_order_by_arg {
+    my ($topic, $rtn_nm, $arg_nm, $order_by) = @_;
+
+    if (defined $order_by and !ref $order_by) {
+        $order_by = [$order_by];
+    }
+    confess qq{$rtn_nm(): Bad $arg_nm arg;}
+            . q{ it must be an array-ref or a defined non-ref.}
+        if ref $order_by ne 'ARRAY';
+
+    $order_by = [CORE::map {
+              (ref $_ ne 'ARRAY') ? [$_, 0, 'cmp']
+            : (@{$_} == 1)        ? [@{$_}, 0, 'cmp']
+            : (@{$_} == 2)        ? [@{$_}, 'cmp']
+            :                       $_
+        } @{$order_by}];
+    confess qq{$rtn_nm(): Bad $arg_nm arg elem;}
+            . q{ it must be a 1-3 elem array-ref or a defined non-ref,}
+            . q{ its first elem must be a valid attr name (defin non-ref),}
+            . q{ and its third elem must be undef or one of 'cmp'|'<=>'.}
+        if notall {
+                ref $_ eq 'ARRAY' and @{$_} == 3
+                and defined $_->[0] and !ref $_->[0]
+                and (!defined $_->[2]
+                    or $_->[2] eq 'cmp' or $_->[2] eq '<=>')
+            } @{$order_by};
+
+    my $atnms = [CORE::map { $_->[0] } @{$order_by}];
+    confess qq{$rtn_nm(): Bad $arg_nm arg;}
+            . q{ it specifies a list of}
+            . q{ attr names with at least one duplicated name.}
+        if (uniq @{$atnms}) != @{$atnms};
+
+    my $topic_h = $topic->_heading();
+    confess qq{$rtn_nm(): Bad $arg_nm arg;}
+            . q{ the list of attr names it specifies isn't a subset of the}
+            . q{ heading of the relation defined by the $members arg.}
+        if notall { exists $topic_h->{$_} } @{$atnms};
+
+    return $order_by;
+}
+
+###########################################################################
+
+sub _sort_func_from_order_by {
+    my ($topic, $order_by) = @_;
+    my $sort_func_perl
+    = "sub {\n"
+        . "my (\$topic) = \@_;\n"
+        . "return [sort {\n"
+            . (CORE::join ' || ', '0', CORE::map {
+                    my ($name, $is_reverse_order, $compare_op) = @{$_};
+                    $compare_op ||= 'cmp';
+                    ($is_reverse_order
+                        ? "\$b->{'$name'} $compare_op \$a->{'$name'}"
+                        : "\$a->{'$name'} $compare_op \$b->{'$name'}");
+                } @{$order_by}) . "\n"
+        . "} values \%{\$topic->_body()}];\n"
+    . "}\n"
+    ;
+    my $sort_func = eval $sort_func_perl;
+    if (my $err = $@) {
+        confess qq{Oops, failed to compile Perl sort func from order by;\n}
+            . qq{  error message is [[$err]];\n}
+            . qq{  source code is [[$sort_func_perl]].}
+    }
+    return $sort_func;
+}
+
+###########################################################################
+
 sub limit {
     my ($topic, $ord_func, $min_rank, $max_rank) = @_;
 
@@ -2809,6 +2973,43 @@ sub limit {
         my $topic_t_refaddr
             = $topic_tuples_by_ext_tt_ref->{refaddr $ext_topic_t};
         $result_b->{$topic_t_refaddr} = $topic_b->{$topic_t_refaddr};
+    }
+
+    return $result;
+}
+
+###########################################################################
+
+sub limit_by_attr_names {
+    my ($topic, $order_by, $min_rank, $max_rank) = @_;
+
+    $order_by = $topic->_normalize_order_by_arg(
+        'limit_by_attr_names', '$order_by', $order_by );
+
+    $topic->_assert_valid_nnint_arg(
+        'limit_by_attr_names', '$min_rank', $min_rank );
+    $topic->_assert_valid_nnint_arg(
+        'limit_by_attr_names', '$max_rank', $max_rank );
+    confess q{limit_by_attr_names():}
+            . q{ The $max_rank arg can't be less than the $min_rank.}
+        if $max_rank < $min_rank;
+
+    if ($topic->is_empty()) {
+        return $topic;
+    }
+
+    my $sort_func = $topic->_sort_func_from_order_by( $order_by );
+
+    if (!$topic->_is_known_dup_free()) {
+        $topic->_dup_free_want_index_over_all_attrs();
+    }
+
+    my $result = $topic->empty();
+
+    my $result_b = $result->_body();
+
+    for my $topic_t (@{$sort_func->( $topic )}[$min_rank..$max_rank]) {
+        $result_b->{refaddr $topic_t} = $topic_t;
     }
 
     return $result;
@@ -3195,7 +3396,7 @@ Bundled second implementation of Set::Relation role
 
 =head1 VERSION
 
-This document describes Set::Relation::V2 version 0.9.0 for Perl 5.
+This document describes Set::Relation::V2 version 0.10.0 for Perl 5.
 
 =head1 SYNOPSIS
 
@@ -3243,12 +3444,12 @@ installation by users of earlier Perl versions:
 L<version-ver(0.74..*)|version>.
 
 It also requires these Perl 5 packages that are on CPAN:
-L<namespace::clean-ver(0.09..*)|namespace::clean>,
+L<namespace::clean-ver(0.11..*)|namespace::clean>,
 L<List::MoreUtils-ver(0.22..*)|List::MoreUtils>,
-L<Moose-ver(0.72..*)|Moose>.
+L<Moose-ver(0.75..*)|Moose>.
 
 It also requires these Perl 5 packages that are in the current
-distribution: L<Set::Relation-ver(0.9.0..*)|Set::Relation>.
+distribution: L<Set::Relation-ver(0.10.0..*)|Set::Relation>.
 
 =head1 INCOMPATIBILITIES
 

@@ -7,7 +7,7 @@ use ExtUtils::MakeMaker;
 
 WriteMakefile(
     'NAME' => 'Set::Relation',
-    'VERSION' => '0.9.0',
+    'VERSION' => '0.10.0',
     'ABSTRACT' => 'Relation data type for Perl',
     'AUTHOR' => 'Darren Duncan <perl@DarrenDuncan.net>',
     'LICENSE' => 'lgpl',
@@ -15,11 +15,11 @@ WriteMakefile(
         # These are bundled with Perls 5.10.x but not Perls 5.8.x.
         'version' => 0.74,
         # These are not bundled with any version of Perl.
-        'namespace::clean' => 0.09,
+        'namespace::clean' => 0.11,
         'List::MoreUtils' => 0.22,
-        'Moose' => 0.72,
-        'Moose::Role' => 0.72,
-        'Class::MOP' => 0.78, # req latest indep of Moose
+        'Moose' => 0.75,
+        'Moose::Role' => 0.75,
+        'Class::MOP' => 0.82, # req latest indep of Moose
         # These are only used by the tests, are not bundled with any Perl.
         'Test::Deep' => 0,
     },
