@@ -7,10 +7,10 @@ use warnings FATAL => 'all';
 ###########################################################################
 
 { package Set::Relation; # role
-    use version 0.74; our $VERSION = qv('0.10.0');
+    use version 0.74; our $VERSION = qv('0.11.0');
     # Note: This given version applies to all of this file's packages.
 
-    use Moose::Role 0.75;
+    use Moose::Role 0.79;
 
     use namespace::clean -except => 'meta';
 
@@ -28,41 +28,47 @@ use warnings FATAL => 'all';
     requires 'has_attrs';
     requires 'attr_names';
     requires 'cardinality';
+    requires 'count';
     requires 'is_empty';
-    requires 'is_member';
+    requires 'has_member';
     requires 'has_key';
     requires 'empty';
     requires 'insertion';
     requires 'deletion';
     requires 'rename';
     requires 'projection';
-    requires 'cmpl_projection';
+    requires 'cmpl_proj';
     requires 'wrap';
     requires 'cmpl_wrap';
     requires 'unwrap';
     requires 'group';
     requires 'cmpl_group';
     requires 'ungroup';
-    requires 'transitive_closure';
+    requires 'tclose';
     requires 'restriction';
-    requires 'restriction_and_cmpl';
-    requires 'cmpl_restriction';
+    requires 'restr_and_cmpl';
+    requires 'cmpl_restr';
     requires 'classification';
     requires 'extension';
-    requires 'static_extension';
+    requires 'static_exten';
     requires 'map';
     requires 'summary';
     requires 'cardinality_per_group';
+    requires 'count_per_group';
 
     requires 'is_identical';
     requires 'is_subset';
+    requires 'is_superset';
     requires 'is_proper_subset';
+    requires 'is_proper_superset';
     requires 'is_disjoint';
     requires 'union';
     requires 'exclusion';
+    requires 'symmetric_diff';
     requires 'intersection';
-    requires 'difference';
-    requires 'semidifference';
+    requires 'diff';
+    requires 'semidiff';
+    requires 'antijoin';
     requires 'semijoin_and_diff';
     requires 'semijoin';
     requires 'join';
@@ -77,7 +83,7 @@ use warnings FATAL => 'all';
     requires 'limit_by_attr_names';
 
     requires 'substitution';
-    requires 'static_substitution';
+    requires 'static_subst';
     requires 'subst_in_restr';
     requires 'static_subst_in_restr';
     requires 'subst_in_semijoin';
@@ -95,7 +101,7 @@ use warnings FATAL => 'all';
 
 { package Set::Relation::Mutable; # role
 
-    use Moose::Role 0.75;
+    use Moose::Role 0.79;
 
     use namespace::clean -except => 'meta';
 
@@ -128,7 +134,7 @@ Relation data type for Perl
 
 =head1 VERSION
 
-This document describes Set::Relation version 0.10.0 for Perl 5.
+This document describes Set::Relation version 0.11.0 for Perl 5.
 
 =head1 SYNOPSIS
 
@@ -199,9 +205,9 @@ and a relation, respectively.  A relation is analogous to a SQL row-set
 but that the columns and rows are not ordered, and there are no duplicate
 column names or duplicate rows.  Set::Relation provides all the normal
 operators of other Set:: classes, such as 'is_subset', 'union',
-'difference' etc, but it also provides operators like 'join', 'quotient',
+'diff' etc, but it also provides operators like 'join', 'quotient',
 'projection', 'group', 'summary', 'semijoin', 'restriction',
-'semidifference', 'transitive_closure', 'outer_join' etc.
+'semidiff', 'tclose', 'outer_join' etc.
 
 Note, you can model a whole relational database by having a hash ref whose
 keys are akin to SQL table names and whose values are Set::Relation
@@ -580,9 +586,9 @@ using the multi-dimensional Perl data structure given in its C<$members>
 argument, which defines the member attributes and tuples of the new
 relation.  The allowed formats of a C<$members> argument mostly are those
 defined by the Muldis D language dialect
-L<HDMD_Perl5_Tiny|Muldis::D::Dialect::HDMD_Perl5_Tiny> for a C<QRelation>
+L<HDMD_Perl5_STD|Muldis::D::Dialect::HDMD_Perl5_STD> for a C<QRelation>
 (or C<Relation>) value literal node payload, except that attribute values
-are just ordinary Perl values and not HDMD_Perl5_Tiny value literal nodes.
+are just ordinary Perl values and not HDMD_Perl5_STD value literal nodes.
 Examples are:
 
     sub relation { return $sr_class_name->new( @_ ); }
@@ -690,8 +696,8 @@ attributes, essentially the reverse process of an object constructor.
 
 =head2 export_for_new
 
-C<method export_for_new of Hash ($self: Bool|Array $want_ord_attrs?, Bool
-$allow_dup_tuples?)>
+C<method export_for_new of Hash ($self: Bool|Array $want_ord_attrs?,
+Bool $allow_dup_tuples?)>
 
 This method results in a Perl Hash value whose Hash keys and values you can
 give as argument names and values to C<new> such that the latter would
@@ -729,8 +735,8 @@ C<which> (code inside said classes will do conversions as needed).
 
 =head2 members
 
-C<method members of Array ($self: Bool|Array $want_ord_attrs?, Bool
-$allow_dup_tuples?)>
+C<method members of Array ($self: Bool|Array $want_ord_attrs?,
+Bool $allow_dup_tuples?)>
 
 This method results in a Perl Array value as per the 'members' element of
 the Hash that C<export_for_new> would result in with the same invocant and
@@ -752,8 +758,8 @@ method is currently an alias for the C<attr_names> functional method.
 
 =head2 body
 
-C<method body of Array ($self: Bool|Array $want_ord_attrs?, Bool
-$allow_dup_tuples?)>
+C<method body of Array ($self: Bool|Array $want_ord_attrs?,
+Bool $allow_dup_tuples?)>
 
 This method results in a Perl Array value whose elements are the tuples of
 the invocant.  Each tuple is either a Perl Hash or a Perl Array depending
@@ -762,8 +768,8 @@ similarly C<$allow_dup_tuples> affects the result as with C<members>.
 
 =head2 slice
 
-C<method slice of Array ($self: Array|Str $attr_names, Bool
-$want_ord_attrs?, Bool $allow_dup_tuples?)>
+C<method slice of Array ($self: Array|Str $attr_names,
+Bool $want_ord_attrs?, Bool $allow_dup_tuples?)>
 
 This method is like C<body> except that the result has just a subset of the
 attributes of the invocant, those named by C<$attr_names>.  Unlike using
@@ -851,7 +857,13 @@ the count of tuples its body has).  If this method's C<$allow_dup_tuples>
 argument is false (the default), then the result is guaranteed to only
 count the number of distinct tuples of C<$topic>; otherwise, the result may
 be higher, unless the invocant is empty, in which case the result is still
-exactly zero.
+exactly zero.  Note that this operation is also known as I<count> or C<R#>.
+
+=head2 count
+
+C<method count of UInt ($topic: Bool $allow_dup_tuples?)>
+
+This functional method is an alias for C<cardinality>.
 
 =head2 is_empty
 
@@ -860,15 +872,14 @@ C<method is_empty of Bool ($topic:)>
 This functional method results in true iff its invocant has a cardinality
 of zero (that is, it has zero tuples), and false otherwise.
 
-=head2 is_member
+=head2 has_member
 
-C<method is_member of Bool ($r: Array|Hash $t)>
+C<method has_member of Bool ($r: Array|Hash $t)>
 
 This functional method results in true iff all of the tuples of its C<$t>
 argument match tuples of its invocant (that is, iff conceptually C<$t> is a
-member of C<$r>), and false otherwise.  This method is like C<is_subset>
-except that the tuples being looked for don't have to be wrapped in a
-relation.
+member of C<$r>), and false otherwise.  Note that this operation is also
+known as C<∋>.
 
 =head2 has_key
 
@@ -933,9 +944,9 @@ C<$topic>; or, it is a nullary relation if C<$attr_names> is empty.  This
 method will fail if C<$attr_names> specifies any attribute names that
 C<$topic> doesn't have.
 
-=head2 cmpl_projection
+=head2 cmpl_proj
 
-C<method cmpl_projection of Set::Relation ($topic: Array|Str $attr_names)>
+C<method cmpl_proj of Set::Relation ($topic: Array|Str $attr_names)>
 
 This functional method is the same as C<projection> but that it results in
 the complementary subset of attributes of its invocant when given the same
@@ -963,8 +974,8 @@ is the same as a C<$topic> attribute that isn't being wrapped.
 
 =head2 cmpl_wrap
 
-C<method cmpl_wrap of Set::Relation ($topic: Array|Str $cmpl_inner, Str
-$outer)>
+C<method cmpl_wrap of Set::Relation ($topic: Array|Str $cmpl_inner,
+Str $outer)>
 
 This functional method is the same as C<wrap> but that it wraps the
 complementary subset of attributes of C<$topic> to those specified by
@@ -1020,8 +1031,8 @@ C<$outer> is the same as C<$topic> attributes that aren't being grouped.
 
 =head2 cmpl_group
 
-C<method cmpl_group of Set::Relation ($topic: Array|Str $group_per, Str
-$outer)>
+C<method cmpl_group of Set::Relation ($topic: Array|Str $group_per,
+Str $outer)>
 
 This functional method is the same as C<group> but that it groups the
 complementary subset of attributes of C<$topic> to those specified by
@@ -1044,9 +1055,9 @@ for every tuple of C<$topic> (because then there would be no consistent set
 of attribute names to extend C<$topic> with), or if an attribute of
 C<$topic{$outer}> has the same name as another C<$topic> attribute.
 
-=head2 transitive_closure
+=head2 tclose
 
-C<method transitive_closure of Set::Relation ($topic:)>
+C<method tclose of Set::Relation ($topic:)>
 
 This functional method results in the transitive closure of its invocant.
 The invocant must be a binary relation whose attributes are both of the
@@ -1054,18 +1065,18 @@ same type (for whatever concept of "type" you want to have), and the result
 is a relation having the same heading and a body which is a superset of the
 invocant's tuples.  Assuming that the invocant represents all of the node
 pairs in a directed graph that have an arc between them, and so each
-invocant tuple represents an arc, C<transitive_closure> will determine all
+invocant tuple represents an arc, C<tclose> will determine all
 of the node pairs in that graph which have a path between them (a recursive
 operation), so each tuple of the result represents a path.  The result is a
-superset since all arcs are also complete paths.  The C<transitive_closure>
+superset since all arcs are also complete paths.  The C<tclose>
 method is intended to support recursive queries, such as in connection
 with the "part explosion problem" (the problem of finding all components,
 at all levels, of some specified part).
 
 =head2 restriction
 
-C<method restriction of Set::Relation ($topic: Code $func, Bool
-$allow_dup_tuples?)>
+C<method restriction of Set::Relation ($topic: Callable $func,
+Bool $allow_dup_tuples?)>
 
 This functional method results in the relational restriction of its
 C<$topic> invocant as determined by applying the Bool-resulting
@@ -1077,38 +1088,38 @@ topic.  As a trivial case, if C<$func> is defined to
 unconditionally result in true, then this method results simply in
 C<$topic>; or, for an unconditional false, this method results in the empty
 relation with the same heading.  Note that this operation is also
-legitimately known as I<where>.  See also the C<semijoin> method, which is
+known as I<where>.  See also the C<semijoin> method, which is
 a simpler-syntax alternative for C<restriction> in its typical usage where
 restrictions are composed simply of anded or ored tests for attribute value
 equality.  If this method's C<$allow_dup_tuples> argument is false (the
 default), then C<$func> is guaranteed to be invoked just once per distinct
 tuple of C<$topic>; otherwise it might be multiple invoked.
 
-=head2 restriction_and_cmpl
+=head2 restr_and_cmpl
 
-C<method restriction_and_cmpl of Array ($topic: Code $func, Bool
-$allow_dup_tuples?)>
+C<method restr_and_cmpl of Array ($topic: Callable $func,
+Bool $allow_dup_tuples?)>
 
 This functional method performs a 2-way partitioning of all the tuples of
 C<$topic> and results in a 2-element Perl Array whose element values are
 each Set::Relation objects that have the same heading as C<$topic> and
 complementary subsets of its tuples; the first and second elements are
-what C<restriction> and C<cmpl_restriction>, respectively, would result in
+what C<restriction> and C<cmpl_restr>, respectively, would result in
 when having the same invocant and arguments.
 
-=head2 cmpl_restriction
+=head2 cmpl_restr
 
-C<method cmpl_restriction of Set::Relation ($topic: Code $func, Bool
-$allow_dup_tuples?)>
+C<method cmpl_restr of Set::Relation ($topic: Callable $func,
+Bool $allow_dup_tuples?)>
 
 This functional method is the same as C<restriction> but that it results in
 the complementary subset of tuples of C<$topic> when given the same
-invocant and arguments.  See also the C<semidifference> method.
+invocant and arguments.  See also the C<semidiff> method.
 
 =head2 classification
 
-C<method classification of Set::Relation ($topic: Code $func, Str
-$class_attr_name, Str $group_attr_name, Bool $allow_dup_tuples?)>
+C<method classification of Set::Relation ($topic: Callable $func,
+Str $class_attr_name, Str $group_attr_name, Bool $allow_dup_tuples?)>
 
 This functional method conceptually is to C<restriction> what C<group> is
 to C<semijoin>.  It classifies the tuples of C<$topic> into N groups using
@@ -1132,8 +1143,8 @@ invoked.
 
 =head2 extension
 
-C<method extension of Set::Relation ($topic: Array|Str $attr_names, Code
-$func, Bool $allow_dup_tuples?)>
+C<method extension of Set::Relation ($topic: Array|Str $attr_names,
+Callable $func, Bool $allow_dup_tuples?)>
 
 This functional method results in the relational extension of its C<topic>
 invocant as determined by applying the tuple/Hash-resulting zero-parameter
@@ -1158,9 +1169,9 @@ C<$attr_names>.  If this method's C<$allow_dup_tuples> argument is false
 (the default), then C<$func> is guaranteed to be invoked just once per
 distinct tuple of C<$topic>; otherwise it might be multiple invoked.
 
-=head2 static_extension
+=head2 static_exten
 
-C<method static_extension of Set::Relation ($topic: Hash $attrs)>
+C<method static_exten of Set::Relation ($topic: Hash $attrs)>
 
 This functional method is a simpler-syntax alternative to both C<extension>
 and C<product> in the typical scenario of extending a relation, given in
@@ -1170,8 +1181,8 @@ are given in the C<$attrs> argument.
 
 =head2 map
 
-C<method map of Set::Relation ($topic: Array|Str $result_attr_names, Code
-$func, Bool $allow_dup_tuples?)>
+C<method map of Set::Relation ($topic: Array|Str $result_attr_names,
+Callable $func, Bool $allow_dup_tuples?)>
 
 This functional method provides a convenient one-place generalization of
 per-tuple transformations that otherwise might require the chaining of up
@@ -1204,7 +1215,7 @@ C<$topic>; otherwise it might be multiple invoked.
 =head2 summary
 
 C<method summary of Set::Relation ($topic: Array|Str $group_per,
-Array|Str $summ_attr_names, Code $summ_func, Bool $allow_dup_tuples?)>
+Array|Str $summ_attr_names, Callable $summ_func, Bool $allow_dup_tuples?)>
 
 This functional method provides a convenient context for using aggregate
 functions to derive a per-group summary relation, which is its result, from
@@ -1255,6 +1266,13 @@ would have had.  The result's heading consists of the attributes named in
 C<$group_per> plus the attribute named in C<$count_attr_name> (a positive
 integer).
 
+=head2 count_per_group
+
+C<method count_per_group of Set::Relation ($topic:
+Array|Str $group_per, Str $count_attr_name, Bool $allow_dup_tuples?)>
+
+This functional method is an alias for C<cardinality_per_group>.
+
 =head1 Multiple Input Relation Functional Methods
 
 These Set::Relation object methods are pure functional, each one whose
@@ -1272,33 +1290,57 @@ Some of them also result in a Set::Relation object while others do not.
 
 C<method is_identical of Bool ($topic: Set::Relation $other)>
 
-This functional method results in true iff its (mutually commutative)
+This symmetric functional method results in true iff its
 invocant and argument are exactly the same value (that is, Set::Relation
-considers them to have the same value identity), and false otherwise.
+considers them to have the same value identity), and false otherwise.  Note
+that this operation is also known as I<is equal> or C<=>.
 
 =head2 is_subset
 
-C<method is_subset of Bool ($look_in: Set::Relation $look_for)>
+C<method is_subset of Bool ($topic: Set::Relation $other)>
 
 This functional method results in true iff the set of tuples comprising
-C<$look_for> is a subset of the set of tuples comprising C<$look_in> (both
-must have the same heading regardless), and false otherwise.
+C<$topic> is a subset of the set of tuples comprising C<$other> (both
+must have the same heading regardless), and false otherwise.  Note that
+this operation is also known as C<⊆>.
+
+=head2 is_superset
+
+C<method is_superset of Bool ($topic: Set::Relation $other)>
+
+This functional method is an alias for C<is_subset> except that it
+transposes the C<$topic> invocant and C<$other> argument.  This functional
+method results in true iff the set of tuples comprising C<$topic> is a
+superset of the set of tuples comprising C<$other> (both must have the same
+heading regardless), and false otherwise.  Note that this operation is also
+known as C<⊇>.
 
 =head2 is_proper_subset
 
-C<method is_proper_subset of Bool ($look_in: Set::Relation $look_for)>
+C<method is_proper_subset of Bool ($topic: Set::Relation $other)>
 
 This functional method is exactly the same as C<is_subset> except that it
-results in false if C<$look_in> and C<$look_for> are identical.
+results in false if its invocant and argument are identical. Note that this
+operation is also known as C<⊂>.
+
+=head2 is_proper_superset
+
+C<method is_proper_superset of Bool ($topic: Set::Relation $other)>
+
+This functional method is an alias for C<is_proper_subset> except that it
+transposes the C<$topic> invocant and C<$other> argument.  This functional
+method is exactly the same as C<is_superset> except that it results in
+false if its invocant and argument are identical.  Note that this operation
+is also known as C<⊃>.
 
 =head2 is_disjoint
 
 C<method is_disjoint of Bool ($topic: Set::Relation $other)>
 
-This functional method results in true iff the set of tuples comprising
-each of its same-heading mutually commutative invocant and argument are
-mutually disjoint, that is, iff the intersection of the invocant and
-argument is empty; it results in false otherwise.
+This symmetric functional method results in true iff the set of tuples
+comprising each of its same-heading invocant and argument are mutually
+disjoint, that is, iff the intersection of the invocant and argument is
+empty; it results in false otherwise.
 
 =head2 union
 
@@ -1308,11 +1350,12 @@ This functional method results in the relational union/inclusive-or of the
 collective N element values of its same-heading invocant and argument,
 hereafter referred to as C<$inputs>; it is a reduction operator that
 recursively takes each pair of input values and relationally unions (which
-is both commutative and associative) them together until just one is left,
-which is the result.  The result relation has the same heading as all of
-its input relations, and its body contains every tuple that is in any of
-the input relations.  The identity value of relational union is the
-same-heading empty relation value (having zero tuples).
+is commutative, associative, and idempotent) them together until just one
+is left, which is the result.  The result relation has the same heading as
+all of its input relations, and its body contains every tuple that is in
+any of the input relations.  The identity value of relational union is the
+same-heading empty relation value (having zero tuples).  Note that this
+operation is also known as C<∪>.
 
 =head2 exclusion
 
@@ -1327,50 +1370,65 @@ left, which is the result.  The result relation has the same heading as all
 of its input relations, and its body contains every tuple that is in just
 an odd number of the input relations.  The identity value of relational
 exclusion is the same as for C<union>.  Note that this operation is also
-legitimately known as I<symmetric difference>.
+known as I<symmetric difference> or C<∆>.
+
+=head2 symmetric_diff
+
+C<method symmetric_diff of Set::Relation ($topic:
+Array|Set::Relation $others)>
+
+This functional method is an alias for C<exclusion>.
 
 =head2 intersection
 
-C<method intersection of Set::Relation ($topic: Array|Set::Relation
-$others)>
+C<method intersection of Set::Relation ($topic:
+Array|Set::Relation $others)>
 
 This functional method results in the relational intersection/and of the
 collective N element values of its same-heading invocant and argument,
 hereafter referred to as C<$inputs>; it is a reduction operator that
 recursively takes each pair of input values and relationally intersects
-(which is both commutative and associative) them together until just one is
-left, which is the result.  The result relation has the same heading as all
-of its input relations, and its body contains only the tuples that are in
-every one of the input relations.  The identity value of relational
-intersection is the same-heading universal relation value (having all the
-tuples that could possible exist together in a common relation value with
-that heading; this is impossibly large to represent in the general case,
-except perhaps lazily).  Note that this C<intersection> method is
-conceptually a special case of C<join>, applicable when the headings of the
-inputs are the same, and C<join> will produce the same result as this when
-given the same inputs, but with the exception that relational intersection
-has a different identity value for zero inputs than relational join has.
+(which is commutative, associative, and idempotent) them together until
+just one is left, which is the result.  The result relation has the same
+heading as all of its input relations, and its body contains only the
+tuples that are in every one of the input relations.  The identity value of
+relational intersection is the same-heading universal relation value
+(having all the tuples that could possible exist together in a common
+relation value with that heading; this is impossibly large to represent in
+the general case, except perhaps lazily).  Note that this C<intersection>
+method is conceptually a special case of C<join>, applicable when the
+headings of the inputs are the same, and C<join> will produce the same
+result as this when given the same inputs, but with the exception that
+relational intersection has a different identity value for zero inputs than
+relational join has.  Note that this operation is also known as C<∩>.
 
-=head2 difference
+=head2 diff
 
-C<method difference of Set::Relation ($source: Set::Relation $filter)>
+C<method diff of Set::Relation ($source: Set::Relation $filter)>
 
 This functional method results in the relational difference when its
 C<$filter> argument is subtracted from its same-heading C<$source>
 invocant.  The result relation has the same heading as the input relations,
 and its body contains only the tuples that are in C<$source> and are not in
-C<$filter>.  Note that this I<difference> operator is conceptually a
-special case of I<semidifference>, applicable when the headings of the
-inputs are the same.
+C<$filter>.  Note that this I<diff> operator is conceptually a
+special case of I<semidiff>, applicable when the headings of the
+inputs are the same.  Note that this operation is also known as I<minus> or
+I<except> or C<∖>.
 
-=head2 semidifference
+=head2 semidiff
 
-C<method semidifference of Set::Relation ($source: Set::Relation $filter)>
+C<method semidiff of Set::Relation ($source: Set::Relation $filter)>
 
 This functional method is the same as C<semijoin> but that it results in
 the complementary subset of tuples of C<$source> when given the same
-arguments.  Note that this operation is also legitimately known as
-I<antijoin> or I<anti-semijoin>.
+arguments.  Note that this operation is also known as I<antijoin> or
+I<anti-semijoin> or I<semiminus> or I<not matching> or C<⊿>.
+
+=head2 antijoin
+
+C<method antijoin of Set::Relation ($source: Set::Relation $filter)>
+
+This functional method is an alias for C<semidiff>.
 
 =head2 semijoin_and_diff
 
@@ -1380,7 +1438,7 @@ This functional method performs a 2-way partitioning of all the tuples of
 C<$source> and results in a 2-element Perl Array whose element values are
 each Set::Relation objects that have the same heading as C<$source> and
 complementary subsets of its tuples; the first and second elements are
-what C<semijoin> and C<semidifference>, respectively, would result in when
+what C<semijoin> and C<semidiff>, respectively, would result in when
 having the same invocant and argument.
 
 =head2 semijoin
@@ -1393,7 +1451,8 @@ its body contains the subset of C<$source> tuples that match those of
 C<$filter> as per C<join>.  Note that relational semijoin is conceptually a
 short-hand for first doing an ordinary relational join between C<$source>
 and C<$filter>, and then performing a relational projection on all of the
-attributes that just C<$source> has.
+attributes that just C<$source> has.  Note that this operation is also
+known as I<matching> or C<⋉>.
 
 =head2 join
 
@@ -1402,8 +1461,9 @@ C<method join of Set::Relation ($topic: Array|Set::Relation $others)>
 This functional method results in the relational join (natural inner join)
 of the collective N element values of its invocant and argument, hereafter
 referred to as C<$inputs>; it is a reduction operator that recursively
-takes each pair of input values and relationally joins (which is both
-commutative and associative) them together until just one is left, which is
+takes each pair of input values and relationally joins (which is
+commutative,
+associative, and idempotent) them together until just one is left, which is
 the result.  The result relation has a heading that is a union of all of
 the headings of its input relations, and its body is the result of first
 pairwise-matching every tuple of each input relation with every tuple of
@@ -1420,7 +1480,8 @@ just those 2 is a cartesian product; or, if any 2 inputs have all attribute
 names in common, then the join of just those 2 is an intersection; or, if
 for 2 inputs, one's set of attribute names is a proper subset of another's,
 then the join of just those two is a semijoin with the former filtering the
-latter.
+latter.  Note that this operation is also known as I<natural inner join> or
+C<⋈>.
 
 =head2 product
 
@@ -1431,6 +1492,7 @@ the collective N element values of its invocant and argument, hereafter
 referred to as C<$inputs>; it is conceptually a special case of C<join>
 where all input relations have mutually distinct attribute names; unlike
 C<join>, C<product> will fail if any inputs have attribute names in common.
+Note that this operation is also known as I<cartesian/cross join> or C<×>.
 
 =head2 quotient
 
@@ -1444,25 +1506,25 @@ C<{X,Y}> and C<{Y}>, then the result relation has a heading composed of
 attributes C<{X}> (so the result and C<$divisor> headings are both
 complementary subsets of the C<$dividend> heading); the result has all
 tuples C<{X}> such that a tuple C<{X,Y}> appears in C<A> for all tuples
-C<{Y}> appearing in C<B>; that is, C<A / B> is shorthand for C<A{X} -
-((A{X} * B) - A){X}>.
+C<{Y}> appearing in C<B>; that is, C<A ÷ B> is shorthand for C<A{X} ∖
+((A{X} × B) ∖ A){X}>.  Note that this operation is also known as
+I<divideby> or C<÷>.
 
 =head2 composition
 
 C<method composition of Set::Relation ($topic: Set::Relation $other)>
 
-This functional method results in the relational composition of its
-mutually commutative invocant and argument.  It is conceptually a
-short-hand for first doing an ordinary relational join between the input
-relations, and then performing a relational projection on all of the
-attributes that only one of the arguments has; that is, the result has all
-of and just the attributes that were not involved in matching the tuples of
-the inputs.
+This symmetric functional method results in the relational composition of
+its invocant and argument.  It is conceptually a short-hand for first doing
+an ordinary relational join between the input relations, and then
+performing a relational projection on all of the attributes that only one
+of the arguments has; that is, the result has all of and just the
+attributes that were not involved in matching the tuples of the inputs.
 
 =head2 join_with_group
 
-C<method join_with_group of Set::Relation ($primary: Set::Relation
-$secondary, Str $group_attr)>
+C<method join_with_group of Set::Relation ($primary:
+Set::Relation $secondary, Str $group_attr)>
 
 This functional method is a short-hand for first taking a (natural inner)
 C<join> of its C<$primary> invocant and C<$secondary> argument, and then
@@ -1482,7 +1544,7 @@ to supporting ranking and quotas.
 
 =head2 rank
 
-C<method rank of Set::Relation ($topic: Str $name, Code $ord_func)>
+C<method rank of Set::Relation ($topic: Str $name, Callable $ord_func)>
 
 This functional method results in the relational extension of its C<$topic>
 invocant by a single nonnegative-integer-typed attribute whose name is
@@ -1529,8 +1591,8 @@ semantics); if it is undefined then C<cmp> (string) is the default.
 
 =head2 limit
 
-C<method limit of Set::Relation ($topic: Code $ord_func, UInt $min_rank,
-UInt $max_rank)>
+C<method limit of Set::Relation ($topic: Callable $ord_func,
+UInt $min_rank, UInt $max_rank)>
 
 This functional method results in the relational restriction of its
 C<$topic> argument as determined by first ranking its tuples as per C<rank>
@@ -1563,8 +1625,8 @@ to supporting substitutions.
 
 =head2 substitution
 
-C<method substitution of Set::Relation ($topic: Array|Str $attr_names, Code
-$func, Bool $allow_dup_tuples?)>
+C<method substitution of Set::Relation ($topic: Array|Str $attr_names,
+Callable $func, Bool $allow_dup_tuples?)>
 
 This functional method is similar to C<extension> except that it
 substitutes values of existing relation attributes rather than adding new
@@ -1592,9 +1654,9 @@ method's C<$allow_dup_tuples> argument is false (the default), then
 C<$func> is guaranteed to be invoked just once per distinct tuple of
 C<$topic>; otherwise it might be multiple invoked.
 
-=head2 static_substitution
+=head2 static_subst
 
-C<method static_substitution of Set::Relation ($topic: Hash $attrs)>
+C<method static_subst of Set::Relation ($topic: Hash $attrs)>
 
 This functional method is a simpler-syntax alternative to C<substitution>
 in the typical scenario where every tuple of a relation, given in the
@@ -1603,8 +1665,9 @@ attributes; the new attribute values are given in the C<$attrs> argument.
 
 =head2 subst_in_restr
 
-C<method subst_in_restr of Set::Relation ($topic: Code $restr_func,
-Array|Str $subst_attr_names, Code $subst_func, Bool $allow_dup_tuples?)>
+C<method subst_in_restr of Set::Relation ($topic: Callable $restr_func,
+Array|Str $subst_attr_names, Callable $subst_func,
+Bool $allow_dup_tuples?)>
 
 This functional method is like C<substitution> except that it only
 transforms a subset of the tuples of C<$topic> rather than all of them.  It
@@ -1618,16 +1681,17 @@ are composed simply of anded or ored tests for attribute value equality.
 
 =head2 static_subst_in_restr
 
-C<method static_subst_in_restr of Set::Relation ($topic: Code $restr_func,
-Hash $subst, Bool $allow_dup_tuples?)>
+C<method static_subst_in_restr of Set::Relation ($topic:
+Callable $restr_func, Hash $subst, Bool $allow_dup_tuples?)>
 
-This functional method is to C<subst_in_restr> what C<static_substitution>
+This functional method is to C<subst_in_restr> what C<static_subst>
 is to C<substitution>.  See also the C<static_subst_in_semijoin> method.
 
 =head2 subst_in_semijoin
 
 C<method subst_in_semijoin of Set::Relation ($topic: Set::Relation $restr,
-Array|Str $subst_attr_names, Code $subst_func, Bool $allow_dup_tuples?)>
+Array|Str $subst_attr_names, Callable $subst_func,
+Bool $allow_dup_tuples?)>
 
 This functional method is like C<subst_in_restr> except that the subset of
 the tuples of C<$topic> to be transformed is determined by those matched by
@@ -1636,11 +1700,11 @@ restriction.
 
 =head2 static_subst_in_semijoin
 
-C<method static_subst_in_semijoin of Set::Relation ($topic: Set::Relation
-$restr, Hash $subst)>
+C<method static_subst_in_semijoin of Set::Relation ($topic:
+Set::Relation $restr, Hash $subst)>
 
 This functional method is to C<subst_in_semijoin> what
-C<static_substitution> is to C<substitution>.
+C<static_subst> is to C<substitution>.
 
 =head1 Relational Outer-Join Functional Methods
 
@@ -1649,8 +1713,8 @@ to supporting outer-joins.
 
 =head2 outer_join_with_group
 
-C<method outer_join_with_group of Set::Relation ($primary: Set::Relation
-$secondary, Str $group_attr)>
+C<method outer_join_with_group of Set::Relation ($primary:
+Set::Relation $secondary, Str $group_attr)>
 
 This functional method is the same as C<join_with_group> except that it
 results in a half-outer natural join rather than an inner natural join;
@@ -1660,8 +1724,8 @@ named by C<$group_attr> contains zero tuples rather than 1+.
 
 =head2 outer_join_with_undefs
 
-C<method outer_join_with_undefs of Set::Relation ($primary: Set::Relation
-$secondary)>
+C<method outer_join_with_undefs of Set::Relation ($primary:
+Set::Relation $secondary)>
 
 This functional method results in a plain half-outer natural join of its
 C<$primary> invocant and C<$secondary> argument where, for all result
@@ -1684,8 +1748,8 @@ those missing attribute values.
 
 =head2 outer_join_with_exten
 
-C<method outer_join_with_exten of Set::Relation ($primary: Set::Relation
-$secondary, Code $exten_func, Bool $allow_dup_tuples?)>
+C<method outer_join_with_exten of Set::Relation ($primary:
+Set::Relation $secondary, Callable $exten_func, Bool $allow_dup_tuples?)>
 
 This functional method is the same as C<outer_join_with_static_exten> but
 that the result tuples from non-matches are the result of performing a
@@ -1793,7 +1857,7 @@ L<version-ver(0.74..*)|version>.
 
 It also requires these Perl 5 packages that are on CPAN:
 L<namespace::clean-ver(0.11..*)|namespace::clean>,
-L<Moose::Role-ver(0.75..*)|Moose::Role>.
+L<Moose::Role-ver(0.79..*)|Moose::Role>.
 
 =head1 INCOMPATIBILITIES
 

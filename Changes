@@ -1,6 +1,81 @@
                                Set::Relation
 ---------------------------------------------------------------------------
 
+2009-06-01   Darren Duncan <perl@DarrenDuncan.net>
+
+    * Set::Relation version 0.11.0 for Perl 5 is released on CPAN as
+    Set-Relation-0.11.0.tar.gz.
+
+    * Updated external dependencies: Moose/etc to version 0.79, Class::MOP
+    to version 0.84.
+
+    * This release features a number of functional method updates or
+    additions in accordance with the latest Muldis D spec (v0.75.0).
+
+    * (Relation.pm, V2.pm, V1.pm)  WARNING: INCOMPATIBLE CHANGE:  Updated
+    each of the 2 "is[|_proper]_subset" public functional methods so that
+    the canonical sequence of its invocant and parameter is reversed, so
+    the method's name, used infix as normal for OO, would read correctly;
+    also renamed said 2 inputs so that "look_for" is now "topic" and
+    "look_in" is now "other".  This change is silently incompatible and old
+    user code will continue to run without changes, but would give the
+    wrong answers; any old code like "$foo->is_subset($bar)" will need to
+    be changed to "$bar->is_subset($foo)" to keep its semantics, or
+    alternately be changed to "$foo->is_superset($bar)" (see next chg itm).
+
+    * (Relation.pm, V2.pm, V1.pm)  Added the 2 public functional methods
+    (in the Set::Relation role) "is[|_proper]_superset", where each is an
+    alias for another function, "is[|_proper]_subset", save that its
+    invocant and argument are transposed.
+
+    * (Relation.pm, V2.pm, V1.pm)  Renamed the public functional method
+    "is_member" to "has_member" so that the methods's name, used infix as
+    normal for OO, reads correctly.
+
+    * (Relation.pm, V2.pm, V1.pm)  Renamed these 8 public functional
+    methods to terser versions of themselves mainly for the purpose of
+    making them easier to type: "cmpl_projection" -> "cmpl_proj",
+    "transitive_closure" -> "tclose", "restriction_and_cmpl" ->
+    "restr_and_cmpl", "cmpl_restriction" -> "cmpl_restr",
+    "static_extension" -> "static_exten", "[|semi]difference" ->
+    "[|semi]diff", "static_substitution" -> "static_subst".
+
+    * (Relation.pm, V2.pm, V1.pm)  Added the 4 public functional methods
+    (in the Set::Relation role) "count", "count_per_group",
+    "symmetric_diff", "antijoin", where each is a simple alias for another
+    functional method, "cardinality", "cardinality_per_group", "exclusion",
+    "semidiff".
+
+    * (Relation.pm, V2.pm, V1.pm)  Minor docs update to reflect that the
+    Muldis D dialect HDMD_Perl5_Tiny was renamed to HDMD_Perl5_STD.
+
+    * (Relation.pm)  Some POD reformatting:  Updated every method signature
+    having a param "FooType $bar_param" with a linebreak between the paired
+    type name and param name so that each pair is entirely on one line.
+
+    * (Relation.pm)  Updated the docs for all 14 functional methods that
+    have one or more parameters whose declared Perl 6 type was "Code", so
+    that the more modern Perl 6 type name of "Callable" is used instead.
+
+    * (Relation.pm)  Updated the docs on 3 functional methods to use more
+    correct terminology with respect to symmetric dyadic functions, so that
+    it now calls each a "symmetric function" rather than a "function with 2
+    mutually commutative main parameters": "is_identical", "is_disjoint",
+    "composition".
+
+    * (Relation.pm)  Annotated the docs on 3 of the functional methods that
+    previously were directly described with "commutative and associative"
+    to now also say "idempotent" when the main inputs were supplied
+    conceptually as a set argument and not a bag: "union", "intersection",
+    "join".  Now "product" is also idempotent, but its description just
+    says "like join".  The only N-adic functional method that isn't
+    idempotent is "exclusion".
+
+    * (Relation.pm)  Updated the descriptions of 16 functional methods to
+    add or update notes about alternate names that the function or its
+    operation are known as, in particular adding the various math/etc
+    symbols they represent.
+
 2009-04-21   Darren Duncan <perl@DarrenDuncan.net>
 
     * Set::Relation version 0.10.0 for Perl 5 is released on CPAN as

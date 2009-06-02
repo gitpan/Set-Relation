@@ -3,18 +3,18 @@ use utf8;
 use strict;
 use warnings FATAL => 'all';
 
-use Set::Relation 0.009000;
+use Set::Relation 0.011000;
 
 ###########################################################################
 ###########################################################################
 
 { package Set::Relation::V2; # class
-    use version 0.74; our $VERSION = qv('0.10.0');
+    use version 0.74; our $VERSION = qv('0.11.0');
 
     use Scalar::Util 'refaddr';
     use List::MoreUtils 'any', 'all', 'notall', 'uniq';
 
-    use Moose 0.75;
+    use Moose 0.79;
 
     use namespace::clean -except => 'meta';
 
@@ -107,7 +107,7 @@ sub BUILD {
     my ($self, $args) = @_;
     my ($members, $keys) = @{$args}{'members', 'keys'};
 
-    # Note, $members may be in all of the same formats as a HDMD_Perl5_Tiny
+    # Note, $members may be in all of the same formats as a HDMD_Perl5_STD
     # Relation value literal payload, but with a few extra trivial options.
 
     if (!defined $members) {
@@ -678,14 +678,19 @@ sub cardinality {
     }
 }
 
+sub count {
+    my ($self, @args) = @_;
+    return $self->cardinality( @args );
+}
+
 sub is_empty {
     my ($topic) = @_;
     return $topic->cardinality( 1 ) == 0;
 }
 
-sub is_member {
+sub has_member {
     my ($r, $t) = @_;
-    $t = $r->_normalize_same_heading_tuples_arg( 'is_member', '$t', $t );
+    $t = $r->_normalize_same_heading_tuples_arg( 'has_member', '$t', $t );
     my $r_i = $r->_dup_free_want_index_over_all_attrs();
     return all {
             exists $r_i->{$r->_ident_str( $r->_import_nfmt_tuple( $_ ) )}
@@ -908,17 +913,17 @@ sub _projection {
     return $result;
 }
 
-sub cmpl_projection {
+sub cmpl_proj {
     my ($topic, $attr_names) = @_;
 
     my $topic_h = $topic->_heading();
 
     (my $cproj_h, $attr_names)
         = $topic->_atnms_hr_from_assert_valid_atnms_arg(
-        'cmpl_projection', '$attr_names', $attr_names );
+        'cmpl_proj', '$attr_names', $attr_names );
     my (undef, undef, $cproj_only)
         = $topic->_ptn_conj_and_disj( $topic_h, $cproj_h );
-    confess q{cmpl_projection(): Bad $attr_names arg; that attr list}
+    confess q{cmpl_proj(): Bad $attr_names arg; that attr list}
             . q{ isn't a subset of the invocant's heading.}
         if @{$cproj_only} > 0;
 
@@ -1304,10 +1309,10 @@ sub ungroup {
 
 ###########################################################################
 
-sub transitive_closure {
+sub tclose {
     my ($topic) = @_;
 
-    confess q{transitive_closure(): This method may only be invoked on a}
+    confess q{tclose(): This method may only be invoked on a}
             . q{ Set::Relation object with exactly 2 (same-typed) attrs.}
         if $topic->degree() != 2;
 
@@ -1322,15 +1327,15 @@ sub transitive_closure {
     my ($atnm1, $atnm2) = sort (CORE::keys %{$topic->_heading()});
 
     return $topic->_rename( { $atnm1 => 'x', $atnm2 => 'y' } )
-        ->_transitive_closure_of_xy()
+        ->_tclose_of_xy()
         ->_rename( { 'x' => $atnm1, 'y' => $atnm2 } );
 }
 
-# TODO: Reimplement transitive_closure to do all the work internally rather
+# TODO: Reimplement tclose to do all the work internally rather
 # than farming out to rename/join/projection/union/etc; this should make
 # performance an order of magnitude better and without being complicated.
 
-sub _transitive_closure_of_xy {
+sub _tclose_of_xy {
     my ($xy) = @_;
 
     if (!$xy->_is_known_dup_free()) {
@@ -1361,7 +1366,7 @@ sub _transitive_closure_of_xy {
     # already in xy and was added; so now we need to check if any
     # yet-longer paths can be made from the just-produced.
 
-    return $ttt->_transitive_closure_of_xy();
+    return $ttt->_tclose_of_xy();
 }
 
 ###########################################################################
@@ -1403,14 +1408,13 @@ sub restriction {
     return $result;
 }
 
-sub restriction_and_cmpl {
+sub restr_and_cmpl {
     my ($topic, $func, $allow_dup_tuples) = @_;
-    $topic->_assert_valid_func_arg(
-        'restriction_and_cmpl', '$func', $func );
-    return $topic->_restriction_and_cmpl( $func, $allow_dup_tuples );
+    $topic->_assert_valid_func_arg( 'restr_and_cmpl', '$func', $func );
+    return $topic->_restr_and_cmpl( $func, $allow_dup_tuples );
 }
 
-sub _restriction_and_cmpl {
+sub _restr_and_cmpl {
     my ($topic, $func, $allow_dup_tuples) = @_;
 
     if ($topic->is_empty()) {
@@ -1451,10 +1455,10 @@ sub _restriction_and_cmpl {
     return [$pass_result, $fail_result];
 }
 
-sub cmpl_restriction {
+sub cmpl_restr {
     my ($topic, $func, $allow_dup_tuples) = @_;
 
-    $topic->_assert_valid_func_arg( 'cmpl_restriction', '$func', $func );
+    $topic->_assert_valid_func_arg( 'cmpl_restr', '$func', $func );
 
     if ($topic->is_empty()) {
         return $topic;
@@ -1617,27 +1621,27 @@ sub _extension {
 
 ###########################################################################
 
-sub static_extension {
+sub static_exten {
     my ($topic, $attrs) = @_;
 
-    confess q{static_extension(): Bad $attrs arg; it isn't a hash-ref.}
+    confess q{static_exten(): Bad $attrs arg; it isn't a hash-ref.}
         if ref $attrs ne 'HASH';
 
     my ($both, undef, undef)
         = $topic->_ptn_conj_and_disj( $topic->_heading(), $attrs );
-    confess q{static_extension(): Bad $attrs arg; that attr list}
+    confess q{static_exten(): Bad $attrs arg; that attr list}
             . q{ isn't disjoint with the invocant's heading.}
         if @{$both} > 0;
 
-    confess q{static_extension(): Bad $attrs arg;}
+    confess q{static_exten(): Bad $attrs arg;}
             . q{ it is a hash-ref, and there exist circular refs}
             . q{ between itself or its tuple-valued components.}
         if $topic->_tuple_arg_has_circular_refs( $attrs );
 
-    return $topic->_static_extension( $attrs );
+    return $topic->_static_exten( $attrs );
 }
 
-sub _static_extension {
+sub _static_exten {
     my ($topic, $attrs) = @_;
 
     if ((scalar CORE::keys %{$attrs}) == 0) {
@@ -1848,6 +1852,11 @@ sub cardinality_per_group {
     return $result;
 }
 
+sub count_per_group {
+    my ($self, @args) = @_;
+    return $self->cardinality_per_group( @args );
+}
+
 ###########################################################################
 
 sub _atnms_hr_from_assert_valid_atnms_arg {
@@ -1963,23 +1972,41 @@ sub _is_identical {
 ###########################################################################
 
 sub is_subset {
-    my ($look_in, $look_for) = @_;
-    $look_for = $look_in->_normalize_same_heading_relation_arg(
-        'is_subset', '$look_for', $look_for );
-    my $look_in_i = $look_in->_dup_free_want_index_over_all_attrs();
-    return all { exists $look_in_i->{$_} }
-        CORE::keys %{$look_for->_dup_free_want_index_over_all_attrs()};
+    my ($topic, $other) = @_;
+    $other = $topic->_normalize_same_heading_relation_arg(
+        'is_subset', '$other', $other );
+    my $other_i = $other->_dup_free_want_index_over_all_attrs();
+    return all { exists $other_i->{$_} }
+        CORE::keys %{$topic->_dup_free_want_index_over_all_attrs()};
+}
+
+sub is_superset {
+    my ($topic, $other) = @_;
+    $other = $topic->_normalize_same_heading_relation_arg(
+        'is_superset', '$other', $other );
+    my $topic_i = $topic->_dup_free_want_index_over_all_attrs();
+    return all { exists $topic_i->{$_} }
+        CORE::keys %{$other->_dup_free_want_index_over_all_attrs()};
 }
 
 sub is_proper_subset {
-    my ($look_in, $look_for) = @_;
-    $look_for = $look_in->_normalize_same_heading_relation_arg(
-        'is_proper_subset', '$look_for', $look_for );
-    my $look_in_i = $look_in->_dup_free_want_index_over_all_attrs();
-    return ($look_for->cardinality() < $look_in->cardinality()
-        and all { exists $look_in_i->{$_} }
-            CORE::keys %{$look_for
-                ->_dup_free_want_index_over_all_attrs()});
+    my ($topic, $other) = @_;
+    $other = $topic->_normalize_same_heading_relation_arg(
+        'is_proper_subset', '$other', $other );
+    my $other_i = $other->_dup_free_want_index_over_all_attrs();
+    return ($topic->cardinality() < $other->cardinality()
+        and all { exists $other_i->{$_} }
+            CORE::keys %{$topic->_dup_free_want_index_over_all_attrs()});
+}
+
+sub is_proper_superset {
+    my ($topic, $other) = @_;
+    $other = $topic->_normalize_same_heading_relation_arg(
+        'is_proper_superset', '$other', $other );
+    my $topic_i = $topic->_dup_free_want_index_over_all_attrs();
+    return ($other->cardinality() < $topic->cardinality()
+        and all { exists $topic_i->{$_} }
+            CORE::keys %{$other->_dup_free_want_index_over_all_attrs()});
 }
 
 sub is_disjoint {
@@ -2026,7 +2053,7 @@ sub _union {
 ###########################################################################
 
 sub exclusion {
-    # Also known as symmetric_difference().
+    # Also known as symmetric_diff().
     my ($topic, $others) = @_;
 
     $others = $topic->_normalize_same_heading_relations_arg(
@@ -2076,6 +2103,11 @@ sub exclusion {
     $result->_is_known_dup_free( 1 );
 
     return $result;
+}
+
+sub symmetric_diff {
+    my ($self, @args) = @_;
+    return $self->exclusion( @args );
 }
 
 ###########################################################################
@@ -2190,22 +2222,22 @@ sub _normalize_relations_arg {
 
 ###########################################################################
 
-sub difference {
+sub diff {
     my ($source, $filter) = @_;
     $filter = $source->_normalize_same_heading_relation_arg(
-        'difference', '$other', $filter );
-    return $source->_difference( $filter );
+        'diff', '$other', $filter );
+    return $source->_diff( $filter );
 }
 
-sub _difference {
+sub _diff {
     my ($source, $filter) = @_;
     if ($source->is_empty() or $filter->is_empty()) {
         return $source;
     }
-    return $source->_regular_difference( $filter );
+    return $source->_regular_diff( $filter );
 }
 
-sub _regular_difference {
+sub _regular_diff {
     my ($source, $filter) = @_;
 
     my $result = $source->empty();
@@ -2228,14 +2260,19 @@ sub _regular_difference {
 
 ###########################################################################
 
-sub semidifference {
+sub semidiff {
     my ($source, $filter) = @_;
     $filter = $source->_normalize_relation_arg(
-        'semidifference', '$filter', $filter );
+        'semidiff', '$filter', $filter );
     if ($source->is_empty() or $filter->is_empty()) {
         return $source;
     }
-    return $source->_regular_difference( $source->_semijoin( $filter ) );
+    return $source->_regular_diff( $source->_semijoin( $filter ) );
+}
+
+sub antijoin {
+    my ($self, @args) = @_;
+    return $self->semidiff( @args );
 }
 
 sub semijoin_and_diff {
@@ -2254,7 +2291,7 @@ sub _semijoin_and_diff {
         return [$source->empty(), $source];
     }
     my $semijoin = $source->_semijoin( $filter );
-    return [$semijoin, $source->_regular_difference( $semijoin )];
+    return [$semijoin, $source->_regular_diff( $semijoin )];
 }
 
 sub semijoin {
@@ -2572,9 +2609,9 @@ sub quotient {
     # and divisor heading is proper subset of dividend heading.
 
     return $proj_of_dividend_only
-        ->_difference( $proj_of_dividend_only
+        ->_diff( $proj_of_dividend_only
             ->_regular_product( $divisor )
-            ->_difference( $dividend )
+            ->_diff( $dividend )
             ->_projection( $dividend_only )
         );
 }
@@ -3081,11 +3118,11 @@ sub _substitution {
 
 ###########################################################################
 
-sub static_substitution {
+sub static_subst {
     my ($topic, $attrs) = @_;
     $topic->_assert_valid_static_subst_args(
-        'static_substitution', '$attrs', $attrs );
-    return $topic->_static_substitution( $attrs );
+        'static_subst', '$attrs', $attrs );
+    return $topic->_static_subst( $attrs );
 }
 
 sub _assert_valid_static_subst_args {
@@ -3108,7 +3145,7 @@ sub _assert_valid_static_subst_args {
     return;
 }
 
-sub _static_substitution {
+sub _static_subst {
     my ($topic, $attrs) = @_;
 
     if ($topic->is_empty()) {
@@ -3148,8 +3185,7 @@ sub subst_in_restr {
             $subst_attr_names, $subst_func );
 
     my ($topic_to_subst, $topic_no_subst)
-        = @{$topic->_restriction_and_cmpl(
-            $restr_func, $allow_dup_tuples )};
+        = @{$topic->_restr_and_cmpl( $restr_func, $allow_dup_tuples )};
 
     return $topic_to_subst
         ->_substitution( 'subst_in_restr', '$subst_attr_names',
@@ -3170,11 +3206,10 @@ sub static_subst_in_restr {
         'static_subst_in_restr', '$subst', $subst );
 
     my ($topic_to_subst, $topic_no_subst)
-        = @{$topic->_restriction_and_cmpl(
-            $restr_func, $allow_dup_tuples )};
+        = @{$topic->_restr_and_cmpl( $restr_func, $allow_dup_tuples )};
 
     return $topic_to_subst
-        ->_static_substitution( $subst )
+        ->_static_subst( $subst )
         ->_union( [$topic_no_subst] );
 }
 
@@ -3217,7 +3252,7 @@ sub static_subst_in_semijoin {
         = @{$topic->_semijoin_and_diff( $restr )};
 
     return $topic_to_subst
-        ->_static_substitution( $subst )
+        ->_static_subst( $subst )
         ->_union( [$topic_no_subst] );
 }
 
@@ -3254,7 +3289,7 @@ sub outer_join_with_group {
             $inner_h );
 
     my $result_nonmatched = $pri_nonmatched
-        ->_static_extension( {$group_attr => $primary->new( $inner )} );
+        ->_static_exten( {$group_attr => $primary->new( $inner )} );
 
     my $result = $result_matched->_union( [$result_nonmatched] );
 
@@ -3283,7 +3318,7 @@ sub outer_join_with_undefs {
 
     my $result_matched = $pri_matched->_join( [$secondary] );
 
-    my $result_nonmatched = $pri_nonmatched->_static_extension( $filler );
+    my $result_nonmatched = $pri_nonmatched->_static_exten( $filler );
 
     my $result = $result_matched->_union( [$result_nonmatched] );
 
@@ -3326,7 +3361,7 @@ sub outer_join_with_static_exten {
 
     my $result_matched = $pri_matched->_join( [$secondary] );
 
-    my $result_nonmatched = $pri_nonmatched->_static_extension( $filler );
+    my $result_nonmatched = $pri_nonmatched->_static_exten( $filler );
 
     my $result = $result_matched->_union( [$result_nonmatched] );
 
@@ -3396,7 +3431,7 @@ Bundled second implementation of Set::Relation role
 
 =head1 VERSION
 
-This document describes Set::Relation::V2 version 0.10.0 for Perl 5.
+This document describes Set::Relation::V2 version 0.11.0 for Perl 5.
 
 =head1 SYNOPSIS
 
@@ -3446,10 +3481,10 @@ L<version-ver(0.74..*)|version>.
 It also requires these Perl 5 packages that are on CPAN:
 L<namespace::clean-ver(0.11..*)|namespace::clean>,
 L<List::MoreUtils-ver(0.22..*)|List::MoreUtils>,
-L<Moose-ver(0.75..*)|Moose>.
+L<Moose-ver(0.79..*)|Moose>.
 
 It also requires these Perl 5 packages that are in the current
-distribution: L<Set::Relation-ver(0.10.0..*)|Set::Relation>.
+distribution: L<Set::Relation-ver(0.11.0..*)|Set::Relation>.
 
 =head1 INCOMPATIBILITIES
 
