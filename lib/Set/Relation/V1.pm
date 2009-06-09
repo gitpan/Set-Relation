@@ -3,18 +3,18 @@ use utf8;
 use strict;
 use warnings FATAL => 'all';
 
-use Set::Relation 0.011000;
+use Set::Relation 0.011001;
 
 ###########################################################################
 ###########################################################################
 
 { package Set::Relation::V1; # class
-    use version 0.74; our $VERSION = qv('0.11.0');
+    use version 0.74; our $VERSION = qv('0.11.1');
 
     use Scalar::Util 'refaddr';
     use List::MoreUtils 'any', 'all', 'notall', 'uniq';
 
-    use Moose 0.79;
+    use Moose 0.81;
 
     use namespace::clean -except => 'meta';
 
@@ -3439,7 +3439,7 @@ Bundled original implementation of Set::Relation role
 
 =head1 VERSION
 
-This document describes Set::Relation::V1 version 0.11.0 for Perl 5.
+This document describes Set::Relation::V1 version 0.11.1 for Perl 5.
 
 =head1 SYNOPSIS
 
@@ -3608,10 +3608,10 @@ L<version-ver(0.74..*)|version>.
 It also requires these Perl 5 packages that are on CPAN:
 L<namespace::clean-ver(0.11..*)|namespace::clean>,
 L<List::MoreUtils-ver(0.22..*)|List::MoreUtils>,
-L<Moose-ver(0.79..*)|Moose>.
+L<Moose-ver(0.81..*)|Moose>.
 
 It also requires these Perl 5 packages that are in the current
-distribution: L<Set::Relation-ver(0.11.0..*)|Set::Relation>.
+distribution: L<Set::Relation-ver(0.11.1..*)|Set::Relation>.
 
 =head1 INCOMPATIBILITIES
 
