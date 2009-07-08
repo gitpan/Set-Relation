@@ -7,12 +7,12 @@ use warnings FATAL => 'all';
 ###########################################################################
 
 { package Set::Relation; # role
-    use version 0.74; our $VERSION = qv('0.11.1');
+    use version 0.74; our $VERSION = qv('0.11.2');
     # Note: This given version applies to all of this file's packages.
 
-    use Moose::Role 0.81;
+    use namespace::autoclean 0.08;
 
-    use namespace::clean -except => 'meta';
+    use Moose::Role 0.87;
 
     requires 'export_for_new';
     requires 'which';
@@ -101,9 +101,9 @@ use warnings FATAL => 'all';
 
 { package Set::Relation::Mutable; # role
 
-    use Moose::Role 0.81;
+    use namespace::autoclean 0.08;
 
-    use namespace::clean -except => 'meta';
+    use Moose::Role 0.87;
 
     with 'Set::Relation';
 
@@ -134,7 +134,7 @@ Relation data type for Perl
 
 =head1 VERSION
 
-This document describes Set::Relation version 0.11.1 for Perl 5.
+This document describes Set::Relation version 0.11.2 for Perl 5.
 
 =head1 SYNOPSIS
 
@@ -1174,7 +1174,7 @@ Callable $func, Bool $allow_dup_tuples?)>
 
 This functional method provides a convenient one-place generalization of
 per-tuple transformations that otherwise might require the chaining of up
-to a half-dozen other operators like restriction, extension, and rename.
+to a half-dozen other operators like projection, extension, and rename.
 This method results in a relation each of whose tuples is the result of
 applying, to each of the tuples of its C<$topic> invocant, the
 tuple/Hash-resulting zero-parameter Perl subroutine reference given in its
@@ -1844,8 +1844,8 @@ installation by users of earlier Perl versions:
 L<version-ver(0.74..*)|version>.
 
 It also requires these Perl 5 packages that are on CPAN:
-L<namespace::clean-ver(0.11..*)|namespace::clean>,
-L<Moose::Role-ver(0.81..*)|Moose::Role>.
+L<namespace::autoclean-ver(0.08..*)|namespace::autoclean>,
+L<Moose::Role-ver(0.87..*)|Moose::Role>.
 
 =head1 INCOMPATIBILITIES
 
