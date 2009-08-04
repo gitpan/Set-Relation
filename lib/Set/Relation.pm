@@ -7,12 +7,12 @@ use warnings FATAL => 'all';
 ###########################################################################
 
 { package Set::Relation; # role
-    use version 0.74; our $VERSION = qv('0.11.3');
+    use version 0.74; our $VERSION = qv('0.12.0');
     # Note: This given version applies to all of this file's packages.
 
     use namespace::autoclean 0.08;
 
-    use Moose::Role 0.87;
+    use Moose::Role 0.88;
 
     requires 'export_for_new';
     requires 'which';
@@ -103,7 +103,7 @@ use warnings FATAL => 'all';
 
     use namespace::autoclean 0.08;
 
-    use Moose::Role 0.87;
+    use Moose::Role 0.88;
 
     with 'Set::Relation';
 
@@ -134,7 +134,7 @@ Relation data type for Perl
 
 =head1 VERSION
 
-This document describes Set::Relation version 0.11.3 for Perl 5.
+This document describes Set::Relation version 0.12.0 for Perl 5.
 
 =head1 SYNOPSIS
 
@@ -913,12 +913,13 @@ This functional method results in a relation value that is the same as its
 C<$topic> invocant but that some of its attributes have different names.
 Each element of the Hash argument C<$map> specifies how to rename one
 C<$topic> attribute, with the element's Hash key and Hash value
-representing the old and new names of a C<$topic> attribute, respectively.
+representing the new and old names of a C<$topic> attribute, respectively.
 As a trivial case, this method's result is C<$topic> if C<$map> has no
 elements.  This method supports renaming attributes to each others' names.
 This method will fail if C<$map> specifies any old names that C<$topic>
 doesn't have, or any new names that are the same as C<$topic> attributes
-that aren't being renamed.
+that aren't being renamed.  Note that this operation is also known as C<<
+{{<-}} >>.
 
 =head2 projection
 
@@ -930,7 +931,7 @@ which are named in its C<$attr_names> argument.  As a trivial case, this
 method's result is C<$topic> if C<$attr_names> lists all attributes of
 C<$topic>; or, it is a nullary relation if C<$attr_names> is empty.  This
 method will fail if C<$attr_names> specifies any attribute names that
-C<$topic> doesn't have.
+C<$topic> doesn't have.  Note that this operation is also known as C<{{}}>.
 
 =head2 cmpl_proj
 
@@ -938,11 +939,11 @@ C<method cmpl_proj of Set::Relation ($topic: Array|Str $attr_names)>
 
 This functional method is the same as C<projection> but that it results in
 the complementary subset of attributes of its invocant when given the same
-argument.
+argument.  Note that this operation is also known as C<{{!}}>.
 
 =head2 wrap
 
-C<method wrap of Set::Relation ($topic: Array|Str $inner, Str $outer)>
+C<method wrap of Set::Relation ($topic: Str $outer, Array|Str $inner)>
 
 This functional method results in a relation value that is the same as its
 C<$topic> invocant but that, for each of its member tuples, some of its
@@ -958,20 +959,21 @@ C<TT>, the result tuple C<TR> has a single attribute whose value is the
 same as C<TT>.  This method supports the new attribute having the same name
 as an old one being wrapped into it.  This method will fail if C<$inner>
 specifies any attribute names that C<$topic> doesn't have, or if C<$outer>
-is the same as a C<$topic> attribute that isn't being wrapped.
+is the same as a C<$topic> attribute that isn't being wrapped.  Note that
+this operation is also known as C<< {{@<-}} >>.
 
 =head2 cmpl_wrap
 
-C<method cmpl_wrap of Set::Relation ($topic: Array|Str $cmpl_inner,
-Str $outer)>
+C<method cmpl_wrap of Set::Relation ($topic: Str $outer,
+Array|Str $cmpl_inner)>
 
 This functional method is the same as C<wrap> but that it wraps the
 complementary subset of attributes of C<$topic> to those specified by
-C<$cmpl_inner>.
+C<$cmpl_inner>.  Note that this operation is also known as C<< {{@<-!}} >>.
 
 =head2 unwrap
 
-C<method unwrap of Set::Relation ($topic: Str $outer, Array|Str $inner)>
+C<method unwrap of Set::Relation ($topic: Array|Str $inner, Str $outer)>
 
 This functional method is the inverse of C<wrap>, such that it will unwrap
 a tuple-type attribute into its member attributes.  This method will fail
@@ -986,11 +988,11 @@ situation the names of the attributes to add to C<$topic> in place of
 C<$topic{$outer}> can not be determined from C<$topic{$outer}>.  This
 method will fail if C<$topic> has at least 1 tuple and C<$inner> does not
 match the names of the attributes of C<$topic{$outer}> for every tuple of
-C<$topic>.
+C<$topic>.  Note that this operation is also known as C<< {{<-@}} >>.
 
 =head2 group
 
-C<method group of Set::Relation ($topic: Array|Str $inner, Str $outer)>
+C<method group of Set::Relation ($topic: Str $outer, Array|Str $inner)>
 
 This functional method is similar to C<wrap> but that the C<$topic>
 attribute-wrapping transformations result in new relation-typed attributes
@@ -1016,19 +1018,20 @@ C<$topic> does).  This method supports the new attribute having the same
 name as an old one being grouped into it.  This method will fail if
 C<$inner> specifies any attribute names that C<$topic> doesn't have, or if
 C<$outer> is the same as C<$topic> attributes that aren't being grouped.
+Note that this operation is also known as I<nest> or C<< {{@@<-}} >>.
 
 =head2 cmpl_group
 
-C<method cmpl_group of Set::Relation ($topic: Array|Str $group_per,
-Str $outer)>
+C<method cmpl_group of Set::Relation ($topic: Str $outer,
+Array|Str $group_per)>
 
 This functional method is the same as C<group> but that it groups the
 complementary subset of attributes of C<$topic> to those specified by
-C<$group_per>.
+C<$group_per>.  Note that this operation is also known as C<< {{@@<-!}} >>.
 
 =head2 ungroup
 
-C<method ungroup of Set::Relation ($topic: Str $outer, Array|Str $inner)>
+C<method ungroup of Set::Relation ($topic: Array|Str $inner, Str $outer)>
 
 This functional method is the inverse of C<group> as C<unwrap> is to
 C<wrap>; it will ungroup a relation-type attribute into its member
@@ -1041,7 +1044,8 @@ will fail if C<$outer> specifies any attribute name that C<$topic> doesn't
 have, or if C<$topic{$outer}> does not have a same-heading relation value
 for every tuple of C<$topic> (because then there would be no consistent set
 of attribute names to extend C<$topic> with), or if an attribute of
-C<$topic{$outer}> has the same name as another C<$topic> attribute.
+C<$topic{$outer}> has the same name as another C<$topic> attribute.  Note
+that this operation is also known as I<unnest> or C<< {{<-@@}} >>.
 
 =head2 tclose
 
@@ -1244,7 +1248,7 @@ tuple; otherwise it might be multiple invoked.
 =head2 cardinality_per_group
 
 C<method cardinality_per_group of Set::Relation ($topic:
-Array|Str $group_per, Str $count_attr_name, Bool $allow_dup_tuples?)>
+Str $count_attr_name, Array|Str $group_per, Bool $allow_dup_tuples?)>
 
 This functional method is a convenient shorthand for the common use of
 C<summary> that is just counting the tuples of each group.  This function
@@ -1252,12 +1256,12 @@ is like C<cmpl_group> but that the single added attribute, rather than an
 RVA of the grouped C<$topic> attributes, has the cardinality that said RVA
 would have had.  The result's heading consists of the attributes named in
 C<$group_per> plus the attribute named in C<$count_attr_name> (a positive
-integer).
+integer).  Note that this operation is also known as C<< {{#@@<-!}} >>.
 
 =head2 count_per_group
 
 C<method count_per_group of Set::Relation ($topic:
-Array|Str $group_per, Str $count_attr_name, Bool $allow_dup_tuples?)>
+Str $count_attr_name, Array|Str $group_per, Bool $allow_dup_tuples?)>
 
 This functional method is an alias for C<cardinality_per_group>.
 
@@ -1845,7 +1849,7 @@ L<version-ver(0.74..*)|version>.
 
 It also requires these Perl 5 packages that are on CPAN:
 L<namespace::autoclean-ver(0.08..*)|namespace::autoclean>,
-L<Moose::Role-ver(0.87..*)|Moose::Role>.
+L<Moose::Role-ver(0.88..*)|Moose::Role>.
 
 =head1 INCOMPATIBILITIES
 
