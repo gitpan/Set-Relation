@@ -7,13 +7,13 @@ use warnings FATAL => 'all';
 ###########################################################################
 
 { package Set::Relation; # role
-    our $VERSION = '0.012001';
+    our $VERSION = '0.012002';
     $VERSION = eval $VERSION;
     # Note: This given version applies to all of this file's packages.
 
     use namespace::autoclean 0.08;
 
-    use Moose::Role 0.88;
+    use Moose::Role 0.89;
 
     requires 'export_for_new';
     requires 'which';
@@ -104,7 +104,7 @@ use warnings FATAL => 'all';
 
     use namespace::autoclean 0.08;
 
-    use Moose::Role 0.88;
+    use Moose::Role 0.89;
 
     with 'Set::Relation';
 
@@ -135,7 +135,7 @@ Relation data type for Perl
 
 =head1 VERSION
 
-This document describes Set::Relation version 0.12.1 for Perl 5.
+This document describes Set::Relation version 0.12.2 for Perl 5.
 
 =head1 SYNOPSIS
 
@@ -1415,7 +1415,8 @@ C<method semidiff of Set::Relation ($source: Set::Relation $filter)>
 This functional method is the same as C<semijoin> but that it results in
 the complementary subset of tuples of C<$source> when given the same
 arguments.  Note that this operation is also known as I<antijoin> or
-I<anti-semijoin> or I<semiminus> or I<not matching> or C<⊿>.
+I<anti-semijoin> or I<semiminus> or C<!matching> or C<not matching> or
+C<⊿>.
 
 =head2 antijoin
 
@@ -1445,7 +1446,7 @@ C<$filter> as per C<join>.  Note that relational semijoin is conceptually a
 short-hand for first doing an ordinary relational join between C<$source>
 and C<$filter>, and then performing a relational projection on all of the
 attributes that just C<$source> has.  Note that this operation is also
-known as I<matching> or C<⋉>.
+known as C<matching> or C<⋉>.
 
 =head2 join
 
@@ -1841,11 +1842,11 @@ I<This documentation is pending.>
 =head1 DEPENDENCIES
 
 This file requires any version of Perl 5.x.y that is at least 5.8.1, and
-recommends one that is at least 5.10.0.
+recommends one that is at least 5.10.1.
 
 It also requires these Perl 5 packages that are on CPAN:
 L<namespace::autoclean-ver(0.08..*)|namespace::autoclean>,
-L<Moose::Role-ver(0.88..*)|Moose::Role>.
+L<Moose::Role-ver(0.89..*)|Moose::Role>.
 
 =head1 INCOMPATIBILITIES
 

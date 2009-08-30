@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:               Set-Relation
-version:            0.12.1
+version:            0.12.2
 abstract:           Relation data type for Perl
 author:
     - Darren Duncan <perl@DarrenDuncan.net>
@@ -12,13 +12,13 @@ build_requires:
     ExtUtils::MakeMaker:  0
 requires:
     Carp::Always:         0.09
-    Class::MOP:           0.91
+    Class::MOP:           0.92
     List::MoreUtils:      0.22
-    Moose:                0.88
-    Moose::Role:          0.88
+    Moose:                0.89
+    Moose::Role:          0.89
     namespace::autoclean:  0.08
-    Test::Deep:           0
-    Test::More:           0.88
+    Test::Deep:           0.106
+    Test::More:           0.92
 no_index:
     directory:
         - t
