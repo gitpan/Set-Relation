@@ -7,13 +7,13 @@ use warnings FATAL => 'all';
 ###########################################################################
 
 { package Set::Relation; # role
-    our $VERSION = '0.012002';
+    our $VERSION = '0.012004';
     $VERSION = eval $VERSION;
     # Note: This given version applies to all of this file's packages.
 
     use namespace::autoclean 0.09;
 
-    use Moose::Role 0.90;
+    use Moose::Role 0.92;
 
     requires 'export_for_new';
     requires 'which';
@@ -104,7 +104,7 @@ use warnings FATAL => 'all';
 
     use namespace::autoclean 0.09;
 
-    use Moose::Role 0.90;
+    use Moose::Role 0.92;
 
     with 'Set::Relation';
 
@@ -135,7 +135,7 @@ Relation data type for Perl
 
 =head1 VERSION
 
-This document describes Set::Relation version 0.12.3 for Perl 5.
+This document describes Set::Relation version 0.12.4 for Perl 5.
 
 =head1 SYNOPSIS
 
@@ -1415,7 +1415,7 @@ C<method semidiff of Set::Relation ($source: Set::Relation $filter)>
 This functional method is the same as C<semijoin> but that it results in
 the complementary subset of tuples of C<$source> when given the same
 arguments.  Note that this operation is also known as I<antijoin> or
-I<anti-semijoin> or I<semiminus> or C<!matching> or C<not matching> or
+I<anti-semijoin> or I<semiminus> or C<!matching> or C<not-matching> or
 C<⊿>.
 
 =head2 antijoin
@@ -1486,7 +1486,8 @@ the collective N element values of its invocant and argument, hereafter
 referred to as C<$inputs>; it is conceptually a special case of C<join>
 where all input relations have mutually distinct attribute names; unlike
 C<join>, C<product> will fail if any inputs have attribute names in common.
-Note that this operation is also known as I<cartesian/cross join> or C<×>.
+Note that this operation is also known as I<cartesian join> or
+C<cross-join> or C<×>.
 
 =head2 quotient
 
@@ -1752,7 +1753,7 @@ said result tuple is determined by applying the Perl subroutine given in
 C<$exten_func> to each said C<$primary> tuple.  If this method's
 C<$allow_dup_tuples> argument is false (the default), then C<$exten_func>
 is guaranteed to be invoked just once per un-matched tuple of
-C<$secondary>; otherwise it might be multiple invoked.
+C<$primary>; otherwise it might be multiple invoked.
 
 =head1 THE Set::Relation::Mutable ROLE
 
@@ -1846,7 +1847,7 @@ recommends one that is at least 5.10.1.
 
 It also requires these Perl 5 packages that are on CPAN:
 L<namespace::autoclean-ver(0.09..*)|namespace::autoclean>,
-L<Moose::Role-ver(0.90..*)|Moose::Role>.
+L<Moose::Role-ver(0.92..*)|Moose::Role>.
 
 =head1 INCOMPATIBILITIES
 
