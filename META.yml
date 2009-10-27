@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:               Set-Relation
-version:            0.12.4
+version:            0.12.5
 abstract:           Relation data type for Perl
 author:
     - Darren Duncan <perl@DarrenDuncan.net>
@@ -19,6 +19,7 @@ requires:
     Moose:                0.92
     Moose::Role:          0.92
     namespace::autoclean:  0.09
+    perl:                 5.8.1
     Scalar::Util:         1.21
 resources:
     homepage:     http://www.muldis.com/
