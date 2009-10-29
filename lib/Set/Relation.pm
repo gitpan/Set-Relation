@@ -7,7 +7,7 @@ use warnings FATAL => 'all';
 ###########################################################################
 
 { package Set::Relation; # role
-    our $VERSION = '0.012005';
+    our $VERSION = '0.012006';
     $VERSION = eval $VERSION;
     # Note: This given version applies to all of this file's packages.
 
@@ -135,7 +135,7 @@ Relation data type for Perl
 
 =head1 VERSION
 
-This document describes Set::Relation version 0.12.5 for Perl 5.
+This document describes Set::Relation version 0.12.6 for Perl 5.
 
 =head1 SYNOPSIS
 
@@ -1971,6 +1971,6 @@ intended, but not yet started.
 
 Alternately, you can purchase more advanced commercial support for various
 Muldis D implementations, particularly Muldis Rosetta, from its author by
-way of Muldis Data Systems; see (L<http://www.muldis.com/>) for details.
+way of Muldis Data Systems; see L<http://www.muldis.com/> for details.
 
 =cut
