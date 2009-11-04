@@ -3,13 +3,13 @@ use utf8;
 use strict;
 use warnings FATAL => 'all';
 
-use Set::Relation 0.012006;
+use Set::Relation 0.012007;
 
 ###########################################################################
 ###########################################################################
 
 { package Set::Relation::V1; # class
-    our $VERSION = '0.012006';
+    our $VERSION = '0.012007';
     $VERSION = eval $VERSION;
 
     use namespace::autoclean 0.09;
@@ -1153,7 +1153,7 @@ sub _group {
 
             my $inner_r = $topic->_new();
             $inner_r->_heading( $inner_h );
-            $inner_r->_degree( @{$inner} );
+            $inner_r->_degree( scalar @{$inner} );
             my $inner_b = $inner_r->_body();
             for my $topic_t (values %{$matched_topic_b}) {
                 my $inner_t
@@ -1559,7 +1559,7 @@ sub _extension {
     my $result = $topic->_new();
 
     $result->_heading( {%{$topic->_heading()}, %{$exten_h}} );
-    $result->_degree( $topic->degree() + scalar @{$attr_names} );
+    $result->_degree( $topic->degree() + @{$attr_names} );
 
     my $result_b = $result->_body();
 
@@ -1711,7 +1711,7 @@ sub summary {
     my $result = $topic->_new();
 
     $result->_heading( {%{$group_per_h}, %{$exten_h}} );
-    $result->_degree( scalar @{$group_per} + scalar @{$summ_attr_names} );
+    $result->_degree( @{$group_per} + @{$summ_attr_names} );
 
     if ($topic->is_empty()) {
         # An empty $topic means an empty result.
@@ -1727,7 +1727,7 @@ sub summary {
 
         my $inner_r = $topic->_new();
         $inner_r->_heading( $inner_h );
-        $inner_r->_degree( @{$inner} );
+        $inner_r->_degree( scalar @{$inner} );
         my $inner_b = $inner_r->_body();
         for my $topic_t (values %{$matched_topic_b}) {
             my $inner_t = {CORE::map { ($_ => $topic_t->{$_}) } @{$inner}};
@@ -1793,7 +1793,7 @@ sub cardinality_per_group {
     my $result = $topic->_new();
 
     $result->_heading( {%{$group_per_h}, $count_attr_name => undef} );
-    $result->_degree( scalar @{$group_per} + 1 );
+    $result->_degree( @{$group_per} + 1 );
 
     if ($topic->is_empty()) {
         # An empty $topic means an empty result.
@@ -3448,7 +3448,7 @@ Bundled original implementation of Set::Relation role
 
 =head1 VERSION
 
-This document describes Set::Relation::V1 version 0.12.6 for Perl 5.
+This document describes Set::Relation::V1 version 0.12.7 for Perl 5.
 
 =head1 SYNOPSIS
 
@@ -3616,7 +3616,7 @@ L<List::MoreUtils-ver(0.22..*)|List::MoreUtils>,
 L<Moose-ver(0.92..*)|Moose>.
 
 It also requires these Perl 5 packages that are in the current
-distribution: L<Set::Relation-ver(0.12.6..*)|Set::Relation>.
+distribution: L<Set::Relation-ver(0.12.7..*)|Set::Relation>.
 
 =head1 INCOMPATIBILITIES
 
@@ -3633,7 +3633,7 @@ I<This documentation is pending.>
 
 =head1 AUTHOR
 
-Darren Duncan (C<perl@DarrenDuncan.net>)
+Darren Duncan (C<darren@DarrenDuncan.net>)
 
 =head1 LICENSE AND COPYRIGHT
 

@@ -1,9 +1,9 @@
 --- #YAML:1.0
 name:               Set-Relation
-version:            0.12.6
+version:            0.12.7
 abstract:           Relation data type for Perl
 author:
-    - Darren Duncan <perl@DarrenDuncan.net>
+    - Darren Duncan <darren@DarrenDuncan.net>
 license:            lgpl
 distribution_type:  module
 configure_requires:
