@@ -7,116 +7,17 @@ use warnings FATAL => 'all';
 ###########################################################################
 
 { package Set::Relation; # role
-    our $VERSION = '0.012008';
+    our $VERSION = '0.013000';
     $VERSION = eval $VERSION;
-
-    use namespace::autoclean 0.09;
-
-    use Moose::Role 0.92;
-
-    requires 'export_for_new';
-    requires 'which';
-    requires 'members';
-    requires 'heading';
-    requires 'body';
-    requires 'slice';
-    requires 'attr';
-    requires 'keys';
-
-    requires 'degree';
-    requires 'is_nullary';
-    requires 'has_attrs';
-    requires 'attr_names';
-    requires 'cardinality';
-    requires 'count';
-    requires 'is_empty';
-    requires 'has_member';
-    requires 'has_key';
-    requires 'empty';
-    requires 'insertion';
-    requires 'deletion';
-    requires 'rename';
-    requires 'projection';
-    requires 'cmpl_proj';
-    requires 'wrap';
-    requires 'cmpl_wrap';
-    requires 'unwrap';
-    requires 'group';
-    requires 'cmpl_group';
-    requires 'ungroup';
-    requires 'tclose';
-    requires 'restriction';
-    requires 'restr_and_cmpl';
-    requires 'cmpl_restr';
-    requires 'classification';
-    requires 'extension';
-    requires 'static_exten';
-    requires 'map';
-    requires 'summary';
-    requires 'cardinality_per_group';
-    requires 'count_per_group';
-
-    requires 'is_identical';
-    requires 'is_subset';
-    requires 'is_superset';
-    requires 'is_proper_subset';
-    requires 'is_proper_superset';
-    requires 'is_disjoint';
-    requires 'union';
-    requires 'exclusion';
-    requires 'symmetric_diff';
-    requires 'intersection';
-    requires 'diff';
-    requires 'semidiff';
-    requires 'antijoin';
-    requires 'semijoin_and_diff';
-    requires 'semijoin';
-    requires 'join';
-    requires 'product';
-    requires 'quotient';
-    requires 'composition';
-    requires 'join_with_group';
-
-    requires 'rank';
-    requires 'rank_by_attr_names';
-    requires 'limit';
-    requires 'limit_by_attr_names';
-
-    requires 'substitution';
-    requires 'static_subst';
-    requires 'subst_in_restr';
-    requires 'static_subst_in_restr';
-    requires 'subst_in_semijoin';
-    requires 'static_subst_in_semijoin';
-
-    requires 'outer_join_with_group';
-    requires 'outer_join_with_undefs';
-    requires 'outer_join_with_static_exten';
-    requires 'outer_join_with_exten';
-
 } # role Set::Relation
 
 ###########################################################################
 ###########################################################################
 
 { package Set::Relation::Mutable; # role
-    our $VERSION = '0.012008';
+    our $VERSION = '0.013000';
     $VERSION = eval $VERSION;
-
-    use namespace::autoclean 0.09;
-
-    use Moose::Role 0.92;
-
-    with 'Set::Relation' => { -version => 0.012008 };
-
-    requires 'clone';
-    requires 'has_frozen_identity';
-    requires 'freeze_identity';
-
-    requires 'evacuate';
-    requires 'insert';
-    requires 'delete';
-
+    # with Set::Relation
 } # role Set::Relation::Mutable
 
 ###########################################################################
@@ -136,7 +37,7 @@ Relation data type for Perl
 
 =head1 VERSION
 
-This document describes Set::Relation version 0.12.8 for Perl 5.
+This document describes Set::Relation version 0.13.0 for Perl 5.
 
 =head1 SYNOPSIS
 
@@ -178,7 +79,7 @@ I<This documentation is pending.>
 Set::Relation provides a simple Perl-native facility for an application to
 organize and process information using the relational model of data,
 without having to employ a separate DBMS, and without having to employ a
-whole separate sub-language (such as L<Muldis Rosetta|Muldis::Rosetta>
+whole separate sub-/language (such as L<Muldis::D::RefEng>
 does).  Rather, it is integrated a lot more into the Perl way of doing
 things, and you use it much like a Perl array or hash, or like some other
 third-party Set:: modules available for Perl.  This module defines a Perl 5
@@ -198,6 +99,10 @@ B<If you want to help out with this module's development, generally the
 most helpful thing you can do to start out is to flesh out the test suite.
 I suggest looking at the test suites of other Set:: modules as well as
 various database related modules as inspiration or a source for copying.>
+
+B<That being said, Set::Relation is several years out of date on its
+tracking of the Muldis D language, so there is limited value in spending a
+lot of time on it before Muldis::D::RefEng has nailed the spec down.>
 
 Loosely speaking, a Set::Relation object is a wrapper over a set of hash
 refs, where all the hash refs in the set have the same number of elements
@@ -331,28 +236,28 @@ Of course, like any generic tool, Set::Relation should be widely applicable
 in many different situations.
 
 Now, another situation where you may not want to use Set::Relation is when
-its sibling project L<Muldis Rosetta|Muldis::Rosetta> would serve you
+its sibling project L<Muldis::D::RefEng> would serve you
 better.  In contrast to Set::Relation, which is standalone and intended to
-integrate closely with Perl, Muldis Rosetta implements a whole programming
+integrate closely with Perl, Muldis::D::RefEng implements a whole programming
 language distinct from Perl, L<Muldis D|Muldis::D>, and presents a superior
 environment at large for working with the relational model of data; you use
 it sort of like how you use L<DBI> to talk to a SQL DBMS, as a separate
-thing walled off from Perl.  The benefits of using Muldis Rosetta over
+thing walled off from Perl.  The benefits of using Muldis::D::RefEng over
 Set::Relation are multiple, including much better performance and
 scalability, and that it can directly persist data as you'd expect a DBMS
 to do, as well as provide easy access to many other relational model
 features like stronger typing and arbitrary database constraints, and
 nested transactions, as well as access to full powered DBMS engines like
 PostgreSQL and Oracle and SQLite (though you don't have to use those and
-Muldis Rosetta can be used purely implemented in Perl).
+Muldis::D::RefEng can be used purely implemented in Perl).
 
 I<That all said, Set::Relation is actually implemented and works today,
-while Muldis Rosetta is still under construction and you can't use it yet.>
+while Muldis::D::RefEng is still under construction and you can't use it yet.>
 
 That brings out another important reason why Set::Relation exists now; it
-also serves as a proof of concept for a main part of Muldis D and Muldis
-Rosetta, or for a so-called "truly relational DBMSs" in general.  It
-demonstrates ideal features and behaviour for relational operators, in a
+also serves as a proof of concept for a main part of Muldis D and
+Muldis::D::RefEng, or for a so-called "truly relational DBMSs" in general.
+It demonstrates ideal features and behaviour for relational operators, in a
 functioning form that users can experiment with right now.  Set::Relation
 is also meant to serve as inspiration for similar projects, and better
 illustrate features that would be nice for modern programming languages to
@@ -371,7 +276,7 @@ measure their effect and know we didn't break the behaviour.  Also if the
 behaviour/API is nailed first, then new benchmarks we make along the way
 will be backwards compatible with previous baseline versions.  But keep in
 mind that only some kinds of improvements are suitable; some others may be
-inordinately complex and may better be relegated to Muldis Rosetta or other
+inordinately complex and may better be relegated to Muldis::D::RefEng or other
 overlapping solutions instead; the distinction can be discussed
 case-by-case as solutions are proposed.>
 
@@ -1843,12 +1748,7 @@ I<This documentation is pending.>
 
 =head1 DEPENDENCIES
 
-This file requires any version of Perl 5.x.y that is at least 5.8.1, and
-recommends one that is at least 5.10.1.
-
-It also requires these Perl 5 packages that are on CPAN:
-L<namespace::autoclean-ver(0.09..*)|namespace::autoclean>,
-L<Moose::Role-ver(0.92..*)|Moose::Role>.
+This file requires any version of Perl 5.x.y that is at least 5.8.1.
 
 =head1 INCOMPATIBILITIES
 
@@ -1866,9 +1766,9 @@ These Perl 5 packages that are in the current distribution are classes that
 implement the Set::Relation roles: L<Set::Relation::V1>,
 L<Set::Relation::V2>.
 
-These other Perl 6 packages: L<Muldis::Rosetta>, L<Set>.
+These other Perl 6 packages: L<Muldis::D::RefEng>, L<Set>.
 
-These other Perl 5 packages: L<Muldis::Rosetta>, L<Set::Object>,
+These other Perl 5 packages: L<Muldis::D::RefEng>, L<Set::Object>,
 L<Set::Scalar>.
 
 =head1 BUGS AND LIMITATIONS
@@ -1888,7 +1788,7 @@ Darren Duncan (C<darren@DarrenDuncan.net>)
 
 =head1 LICENSE AND COPYRIGHT
 
-Set::Relation is Copyright © 2006-2011, Muldis Data Systems, Inc.
+Set::Relation is Copyright © 2006-2015, Muldis Data Systems, Inc.
 
 L<http://www.muldis.com/>
 
@@ -1935,9 +1835,9 @@ providing files for the test suite, and giving other constructive input.
 
 Several public email-based forums exist whose main topic is
 the L<Muldis D|Muldis::D> language and its implementations, especially
-the L<Muldis Rosetta|Muldis::Rosetta> reference implementation, but also
+the L<Muldis::D::RefEng> reference implementation, but also
 the L<Set::Relation> module.  They exist so that users of Muldis D or
-Muldis Rosetta can help each other, or so that help coming from the
+Muldis::D::RefEng can help each other, or so that help coming from the
 projects' developers can be said once to many people, rather than
 necessarily to each individually.  All of these you can reach via
 L<http://mm.darrenduncan.net/mailman/listinfo>; go there to manage your
@@ -1947,18 +1847,18 @@ subscriptions to, or view the archives of, the following:
 
 =item C<muldis-db-announce@mm.darrenduncan.net>
 
-This low-volume list is mainly for official announcements from Muldis D or
-Muldis Rosetta developers, though developers of related projects can also
-post their announcements here.  This is not a discussion list.
+This low-volume list is mainly for official announcements from Muldis D
+language or implementation developers, though developers of related projects
+can also post their announcements here.  This is not a discussion list.
 
 =item C<muldis-db-users@mm.darrenduncan.net>
 
 This list is for general discussion among people who are using Muldis D or
-any of its implementations, especially the Muldis Rosetta reference
+any of its implementations, especially the Muldis::D::RefEng reference
 implementation.  This is the best place to ask for basic help in getting
-Muldis Rosetta installed on your machine or to make it do what you want.
+Muldis::D::RefEng installed on your machine or to make it do what you want.
 If you are in doubt on which list to use, then use this one by default.
-You could also submit feature requests for Muldis Rosetta or report
+You could also submit feature requests for Muldis D projects or report
 perceived bugs here, if you don't want to use CPAN's RT system.
 
 =item C<muldis-d-language@mm.darrenduncan.net>
@@ -1972,8 +1872,8 @@ is it the place for non-implementers to get help in using said.
 =item C<muldis-db-devel@mm.darrenduncan.net>
 
 This list is for discussion among people who are designing or implementing
-the Muldis Rosetta DBMS framework core, or who are implementing Muldis
-Rosetta Engines, or who are writing Muldis Rosetta core documentation,
+Muldis::D::RefEng, or other Muldis D implementations,
+or who are writing Muldis::D::RefEng core documentation,
 tests, or examples.  It is not the main forum for the Muldis D language
 itself, nor is it the place for non-implementers to get help in using said.
 
@@ -1983,7 +1883,7 @@ An official IRC channel for Muldis D and its implementations is also
 intended, but not yet started.
 
 Alternately, you can purchase more advanced commercial support for various
-Muldis D implementations, particularly Muldis Rosetta, from its author by
+Muldis D implementations, particularly Muldis::D::RefEng, from its author by
 way of Muldis Data Systems; see L<http://www.muldis.com/> for details.
 
 =cut

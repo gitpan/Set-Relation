@@ -4,7 +4,7 @@
       "Darren Duncan <darren@DarrenDuncan.net>"
    ],
    "dynamic_config" : 1,
-   "generated_by" : "ExtUtils::MakeMaker version 6.98, CPAN::Meta::Converter version 2.140640",
+   "generated_by" : "ExtUtils::MakeMaker version 7.04, CPAN::Meta::Converter version 2.143240",
    "license" : [
       "unknown"
    ],
@@ -22,25 +22,22 @@
    "prereqs" : {
       "build" : {
          "requires" : {
-            "Carp::Always" : "0.09",
-            "ExtUtils::MakeMaker" : "6.48",
+            "Carp::Always" : "0.01",
+            "ExtUtils::MakeMaker" : "6.17",
             "Test::Deep" : "0.106",
-            "Test::More" : "0.92"
+            "Test::More" : "0.47"
          }
       },
       "configure" : {
          "requires" : {
-            "ExtUtils::MakeMaker" : "6.48"
+            "ExtUtils::MakeMaker" : "6.17"
          }
       },
       "runtime" : {
          "requires" : {
-            "Class::MOP" : "0.94",
-            "List::MoreUtils" : "0.22",
-            "Moose" : "0.92",
-            "Moose::Role" : "0.92",
-            "Scalar::Util" : "1.21",
-            "namespace::autoclean" : "0.09",
+            "Carp" : "1.01",
+            "List::MoreUtils" : "0.28",
+            "Scalar::Util" : "1.13",
             "perl" : "5.008001"
          }
       }
@@ -56,5 +53,5 @@
       },
       "x_MailingList" : "http://mm.darrenduncan.net/mailman/listinfo"
    },
-   "version" : "v0.12.8"
+   "version" : "v0.13.0"
 }

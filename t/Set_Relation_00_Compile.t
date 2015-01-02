@@ -2,20 +2,20 @@ use 5.008001;
 use utf8;
 use strict;
 use warnings FATAL => 'all';
-use Carp::Always 0.09;
+use Carp::Always 0.01;
 
-use Test::More 0.92;
+use Test::More 0.47;
 
 use_ok( 'Set::Relation' );
-is( $Set::Relation::VERSION, 0.012008,
+is( $Set::Relation::VERSION, 0.013000,
     'Set::Relation is the correct version' );
 
 use_ok( 'Set::Relation::V1' );
-is( $Set::Relation::V1::VERSION, 0.012008,
+is( $Set::Relation::V1::VERSION, 0.013000,
     'Set::Relation::V1 is the correct version' );
 
 use_ok( 'Set::Relation::V2' );
-is( $Set::Relation::V2::VERSION, 0.012008,
+is( $Set::Relation::V2::VERSION, 0.013000,
     'Set::Relation::V2 is the correct version' );
 
 done_testing();
