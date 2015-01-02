@@ -13,7 +13,7 @@ sub OPTIONAL {
 
 WriteMakefile(
    NAME => 'Set::Relation',
-   VERSION => '0.12.7',
+   VERSION => '0.12.8',
    ABSTRACT => 'Relation data type for Perl',
    AUTHOR => 'Darren Duncan <darren@DarrenDuncan.net>',
    PREREQ_PM => {
@@ -24,7 +24,7 @@ WriteMakefile(
       'Carp::Always' => '0.09',
       'Class::MOP' => '0.94',
       'ExtUtils::MakeMaker' => '6.48',
-      'List::MoreUtils' => '0.22',
+      'List::MoreUtils' => '0.22', # but req 0.25_02+ w Perl 5.10.1+
       'Moose::Role' => '0.92',
       'Moose' => '0.92',
       'namespace::autoclean' => '0.09',
@@ -36,7 +36,7 @@ WriteMakefile(
       MIN_PERL_VERSION => '5.008001',
    ),
    OPTIONAL( '6.31',
-      LICENSE => 'lgpl',
+      LICENSE => 'lgpl_3',
    ),
    OPTIONAL( '6.46',
       # Use META_ADD instead of META_MERGE so that we can remove
@@ -68,7 +68,7 @@ WriteMakefile(
          resources => {
             homepage => 'http://www.muldis.com/',
             license => 'http://www.fsf.org/licensing/licenses/lgpl.html',
-            MailingList => 'http://mm.DarrenDuncan.net/mailman/listinfo',
+            MailingList => 'http://mm.darrenduncan.net/mailman/listinfo',
             repository => 'http://github.com/muldis/Set-Relation',
          },
       },

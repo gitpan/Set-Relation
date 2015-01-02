@@ -1,7 +1,7 @@
 # This file was initially written by Todd Hepler (thepler@employees.org).
 
 # This is trying to use the running example data from
-# "Database in Depth" by C. J. Date.
+# "Database in Depth" by C.J. Date.
 
 use 5.008001;
 use utf8;

@@ -1,0 +1,60 @@
+{
+   "abstract" : "Relation data type for Perl",
+   "author" : [
+      "Darren Duncan <darren@DarrenDuncan.net>"
+   ],
+   "dynamic_config" : 1,
+   "generated_by" : "ExtUtils::MakeMaker version 6.98, CPAN::Meta::Converter version 2.140640",
+   "license" : [
+      "unknown"
+   ],
+   "meta-spec" : {
+      "url" : "http://search.cpan.org/perldoc?CPAN::Meta::Spec",
+      "version" : "2"
+   },
+   "name" : "Set-Relation",
+   "no_index" : {
+      "directory" : [
+         "t",
+         "inc"
+      ]
+   },
+   "prereqs" : {
+      "build" : {
+         "requires" : {
+            "Carp::Always" : "0.09",
+            "ExtUtils::MakeMaker" : "6.48",
+            "Test::Deep" : "0.106",
+            "Test::More" : "0.92"
+         }
+      },
+      "configure" : {
+         "requires" : {
+            "ExtUtils::MakeMaker" : "6.48"
+         }
+      },
+      "runtime" : {
+         "requires" : {
+            "Class::MOP" : "0.94",
+            "List::MoreUtils" : "0.22",
+            "Moose" : "0.92",
+            "Moose::Role" : "0.92",
+            "Scalar::Util" : "1.21",
+            "namespace::autoclean" : "0.09",
+            "perl" : "5.008001"
+         }
+      }
+   },
+   "release_status" : "stable",
+   "resources" : {
+      "homepage" : "http://www.muldis.com/",
+      "license" : [
+         "http://www.fsf.org/licensing/licenses/lgpl.html"
+      ],
+      "repository" : {
+         "url" : "http://github.com/muldis/Set-Relation"
+      },
+      "x_MailingList" : "http://mm.darrenduncan.net/mailman/listinfo"
+   },
+   "version" : "v0.12.8"
+}
